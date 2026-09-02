@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
-const VERSAO_SISTEMA = "v2.6.8 • Atualizado em 02/09/2026 18:55";
+const VERSAO_SISTEMA = "v2.6.9 • Atualizado em 02/09/2026 18:59";
 
 const TOTAL_MESAS_SALAO = 15;
 
@@ -63,7 +63,13 @@ export default function App() {
   const [categoriaSel, setCategoriaSel] = useState('Todas');
   const [cardapio, setCardapio] = useState(CARDAPIO_INICIAL);
   const [carrinho, setCarrinho] = useState([]);
-  const [pedidos, setPedidos] = useState([]);
+  
+  // Pedidos sincronizados com localStorage para garantir que nunca sumam
+  const [pedidos, setPedidos] = useState(() => {
+    const salvos = localStorage.getItem('eradogelo_pedidos_ativos');
+    return salvos ? JSON.parse(salvos) : [];
+  });
+
   const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
 
   const [mesaConsultaCliente, setMesaConsultaCliente] = useState('');
@@ -104,18 +110,18 @@ export default function App() {
   const [pagamentosMesa, setPagamentosMesa] = useState({});
 
   useEffect(() => {
-    // Ao carregar, solicita histórico completo se houver no servidor socket
     socket.on('connect', () => {
       socket.emit('solicitar_pedidos');
     });
 
     socket.on('atualizar_lista_pedidos', (listaServidor) => {
-      setPedidos(listaServidor);
+      if (listaServidor && listaServidor.length > 0) {
+        setPedidos(listaServidor);
+      }
     });
 
     socket.on('pedido_recebido', (novoPedido) => {
       setPedidos((prev) => {
-        // Evita duplicatas pelo ID
         if (prev.some((p) => p.id === novoPedido.id)) return prev;
         return [novoPedido, ...prev];
       });
@@ -144,6 +150,10 @@ export default function App() {
       socket.off('status_pedido_atualizado');
     };
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('eradogelo_pedidos_ativos', JSON.stringify(pedidos));
+  }, [pedidos]);
 
   useEffect(() => {
     localStorage.setItem('eradogelo_clientes', JSON.stringify(clientesSalvos));
@@ -309,7 +319,6 @@ export default function App() {
       const numFmt = String(mesaAlvoGarcom).padStart(2, '0');
       identificadorFinal = `Mesa ${numFmt}`;
       numeroMesaFinal = numFmt;
-      // Garçom/Gestor/Adm não precisa de celular preenchido
       nomeClienteFinal = `Mesa ${numFmt} (${usuarioLogado.nome})`;
       celularClienteFinal = '00000000000';
     } else if (tipoAtendimento === 'mesa') {
@@ -331,7 +340,6 @@ export default function App() {
       numeroMesaFinal = 'Avulso';
     }
 
-    // Validação de celular e nome obrigatórios APENAS para Clientes (Autoatendimento)
     if (!usuarioLogado) {
       if (!celularCliente || celularCliente.trim() === '') {
         setMensagem('⚠️ Informe o CELULAR!');
@@ -366,10 +374,13 @@ export default function App() {
     setPedidoEnviadoSucesso(pedidoObjeto);
     setStatusEntregaPedido('enviando');
 
+    // Emite para o servidor e atualiza estado/localStorage localmente
     socket.emit('novo_pedido', pedidoObjeto);
     setPedidos((prev) => {
       if (prev.some((p) => p.id === pedidoObjeto.id)) return prev;
-      return [pedidoObjeto, ...prev];
+      const atualizados = [pedidoObjeto, ...prev];
+      localStorage.setItem('eradogelo_pedidos_ativos', JSON.stringify(atualizados));
+      return atualizados;
     });
 
     setTimeout(() => {
@@ -441,7 +452,7 @@ export default function App() {
 
   const encerarComanda = (localChave) => {
     socket.emit('fechar_comanda', localChave);
-    setPedidos((prev) => prev.filter((p) => {
+    const novosPedidos = pedidos.filter((p) => {
       let chave = p.local;
       if (!chave && p.mesa && p.mesa !== 'Avulso') {
         chave = `Mesa ${String(p.mesa).padStart(2, '0')}`;
@@ -449,7 +460,9 @@ export default function App() {
         chave = 'Avulso';
       }
       return chave !== localChave;
-    }));
+    });
+    setPedidos(novosPedidos);
+    localStorage.setItem('eradogelo_pedidos_ativos', JSON.stringify(novosPedidos));
     setMesaFechamento(null);
     setPagamentosMesa({});
     setItensSelecionadosFechamento({});
