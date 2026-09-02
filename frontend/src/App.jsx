@@ -27,20 +27,20 @@ const CARDAPIO_INICIAL = [
 ];
 
 export default function App() {
-  // Controle de Autenticação / Usuários
-  const [usuarioLogado, setUsuarioLogado] = useState(null); // { nome, tipo: 'adm' | 'gestor' | 'garcom' }
+  const [usuarioLogado, setUsuarioLogado] = useState(null); // null significa visão aberta para o cliente
+  const [modalLoginAberto, setModalLoginAberto] = useState(false);
+  
   const [inputUsuario, setInputUsuario] = useState('');
   const [inputSenha, setInputSenha] = useState('');
   const [tipoSelecionado, setTipoSelecionado] = useState('garcom');
   const [erroLogin, setErroLogin] = useState('');
 
-  const [abaAtiva, setAbaAtiva] = useState('salao');
+  const [abaAtiva, setAbaAtiva] = useState('cardapio'); // Começa direto no cardápio para o cliente
   const [categoriaSel, setCategoriaSel] = useState('Todas');
   const [cardapio, setCardapio] = useState(CARDAPIO_INICIAL);
   const [carrinho, setCarrinho] = useState([]);
   const [pedidos, setPedidos] = useState([]);
 
-  // Novo Item no Cardápio (Gestor / Adm)
   const [novoNomeItem, setNovoNomeItem] = useState('');
   const [novaCategoriaItem, setNovaCategoriaItem] = useState('Espetinhos');
   const [novoPrecoItem, setNovoPrecoItem] = useState('');
@@ -64,8 +64,6 @@ export default function App() {
   const [molhosSelecionados, setMolhosSelecionados] = useState([]);
 
   const [mesaFechamento, setMesaFechamento] = useState(null);
-  const [tipoDivisao, setTipoDivisao] = useState('pessoa');
-  const [qtdPessoas, setQtdPessoas] = useState(1);
 
   useEffect(() => {
     socket.on('pedido_recebido', (novoPedido) => {
@@ -87,38 +85,39 @@ export default function App() {
 
     if (tipoSelecionado === 'adm') {
       if (inputSenha !== '@adm123') {
-        setErroLogin('❌ Senha de Administrador incorreta! (Use @adm123)');
+        setErroLogin('❌ Senha incorreta! (Use @adm123)');
         return;
       }
       setUsuarioLogado({ nome: inputUsuario || 'Administrador', tipo: 'adm' });
-      setAbaAtiva('salao');
     } else if (tipoSelecionado === 'gestor') {
       if (!inputUsuario.trim()) {
         setErroLogin('❌ Informe o nome do Gestor.');
         return;
       }
       setUsuarioLogado({ nome: inputUsuario, tipo: 'gestor' });
-      setAbaAtiva('salao');
     } else {
       if (!inputUsuario.trim()) {
         setErroLogin('❌ Informe o nome do Garçom.');
         return;
       }
       setUsuarioLogado({ nome: inputUsuario, tipo: 'garcom' });
-      setAbaAtiva('salao');
     }
+
+    setModalLoginAberto(false);
+    setInputSenha('');
+    setInputUsuario('');
+    setAbaAtiva('salao');
   };
 
   const handleLogout = () => {
     setUsuarioLogado(null);
-    setInputSenha('');
-    setInputUsuario('');
+    setAbaAtiva('cardapio');
   };
 
   const adicionarItemCardapio = (e) => {
     e.preventDefault();
     if (!novoNomeItem || !novoPrecoItem) {
-      setMensagem('⚠️ Preencha nome e preço do item!');
+      setMensagem('⚠️ Preencha nome e preço!');
       setTimeout(() => setMensagem(''), 3000);
       return;
     }
@@ -135,13 +134,13 @@ export default function App() {
     setNovoNomeItem('');
     setNovoPrecoItem('');
     setNovaDescItem('');
-    setMensagem('✅ Item adicionado ao cardápio com sucesso!');
+    setMensagem('✅ Item adicionado ao cardápio!');
     setTimeout(() => setMensagem(''), 3000);
   };
 
   const removerItemCardapio = (id) => {
     setCardapio((prev) => prev.filter((i) => i.id !== id));
-    setMensagem('🗑️ Item removido do cardápio.');
+    setMensagem('🗑️ Item removido.');
     setTimeout(() => setMensagem(''), 3000);
   };
 
@@ -203,7 +202,7 @@ export default function App() {
       identificadorFinal = `Mesa ${numMesa}`;
     } else {
       if (!identificacaoAvulsa || identificacaoAvulsa.trim() === '') {
-        setMensagem('⚠️ Informe a identificação do Pedido Avulso!');
+        setMensagem('⚠️ Informe a identificação do Pedido!');
         setTimeout(() => setMensagem(''), 4000);
         return;
       }
@@ -211,13 +210,13 @@ export default function App() {
     }
 
     if (!celularCliente || celularCliente.trim() === '') {
-      setMensagem('⚠️ Informe o CELULAR do cliente!');
+      setMensagem('⚠️ Informe o CELULAR!');
       setTimeout(() => setMensagem(''), 4000);
       return;
     }
 
     if (!nomeCliente || nomeCliente.trim() === '') {
-      setMensagem('⚠️ Informe o NOME do cliente!');
+      setMensagem('⚠️ Informe o NOME!');
       setTimeout(() => setMensagem(''), 4000);
       return;
     }
@@ -233,7 +232,7 @@ export default function App() {
       mesa: tipoAtendimento === 'mesa' ? String(numMesa).padStart(2, '0') : 'Avulso',
       cliente: nomeCliente,
       celular: celularCliente,
-      atendente: usuarioLogado.nome,
+      atendente: usuarioLogado ? usuarioLogado.nome : 'Cliente / Autoatendimento',
       itens: carrinho,
       total: totalCalculado,
       horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -243,7 +242,7 @@ export default function App() {
     setPedidos((prev) => [pedidoObjeto, ...prev]);
 
     setCarrinho([]);
-    setMensagem(`✅ Pedido lançado para ${identificadorFinal}!`);
+    setMensagem(`✅ Pedido enviado com sucesso para ${identificadorFinal}!`);
     setTimeout(() => setMensagem(''), 4000);
   };
 
@@ -270,22 +269,6 @@ export default function App() {
     setTimeout(() => setMensagem(''), 4000);
   };
 
-  const selecionarMesaSalao = (numeroMesa) => {
-    const numFormatado = String(numeroMesa).padStart(2, '0');
-    setTipoAtendimento('mesa');
-    setNumMesa(numFormatado);
-
-    const chaveMesa = `Mesa ${numFormatado}`;
-    if (comandasAgrupadas[chaveMesa]) {
-      setMesaFechamento(comandasAgrupadas[chaveMesa]);
-      setQtdPessoas(1);
-    } else {
-      setAbaAtiva('cardapio');
-      setMensagem(`🪑 Mesa ${numFormatado} selecionada! Escolha os itens no cardápio.`);
-      setTimeout(() => setMensagem(''), 3000);
-    }
-  };
-
   const totalCarrinho = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
   const cardapioFiltrado = categoriaSel === 'Todas' ? cardapio : cardapio.filter((i) => i.categoria === categoriaSel);
 
@@ -298,83 +281,6 @@ export default function App() {
 
   const totalMesasOcupadas = listaMesas.filter((m) => m.ocupada).length;
 
-  // TELA DE LOGIN
-  if (!usuarioLogado) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-5">
-          <div className="text-center space-y-1">
-            <h1 className="text-2xl font-black text-cyan-400">Era do Gelo 🧊⚡</h1>
-            <p className="text-xs text-slate-400">Entre com seu perfil para acessar o sistema</p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Tipo de Acesso:</label>
-              <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setTipoSelecionado('garcom')}
-                  className={`py-2 font-bold rounded-lg transition-all ${tipoSelecionado === 'garcom' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
-                >
-                  Garçom
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTipoSelecionado('gestor')}
-                  className={`py-2 font-bold rounded-lg transition-all ${tipoSelecionado === 'gestor' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
-                >
-                  Gestor
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTipoSelecionado('adm')}
-                  className={`py-2 font-bold rounded-lg transition-all ${tipoSelecionado === 'adm' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
-                >
-                  Admin
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Nome do Usuário:</label>
-              <input
-                type="text"
-                placeholder={tipoSelecionado === 'adm' ? "Nome do Administrador" : tipoSelecionado === 'gestor' ? "Nome do Gestor" : "Seu Nome (Garçom)"}
-                value={inputUsuario}
-                onChange={(e) => setInputUsuario(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm font-semibold text-white focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            {tipoSelecionado === 'adm' && (
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Senha de Administrador:</label>
-                <input
-                  type="password"
-                  placeholder="Digite @adm123"
-                  value={inputSenha}
-                  onChange={(e) => setInputSenha(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm font-semibold text-cyan-400 focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-            )}
-
-            {erroLogin && <p className="text-xs font-bold text-rose-400 text-center">{erroLogin}</p>}
-
-            <button
-              type="submit"
-              className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs transition-all shadow-lg shadow-cyan-500/10"
-            >
-              Entrar no Sistema
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // TELA PRINCIPAL DO SISTEMA
   return (
     <div className="min-h-screen bg-slate-950 text-white p-3 md:p-6 pb-24 font-sans">
       <header className="max-w-4xl mx-auto bg-slate-900 p-4 rounded-2xl border border-slate-800 mb-5 shadow-xl">
@@ -382,59 +288,71 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black text-cyan-400 tracking-tight">Era do Gelo 🧊⚡</h1>
-              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                • {usuarioLogado.tipo}: {usuarioLogado.nome}
+              <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                {usuarioLogado ? `• ${usuarioLogado.tipo.toUpperCase()}: ${usuarioLogado.nome}` : '• CARDÁPIO DIGITAL'}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">Painel Operacional Integrado</p>
+            <p className="text-xs text-slate-400 mt-0.5">Faça seu pedido direto pelo celular ou mesa</p>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
             <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 flex-wrap gap-1">
-              <button
-                onClick={() => setAbaAtiva('salao')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'salao' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
-              >
-                🪑 Salão ({totalMesasOcupadas})
-              </button>
+              {/* Cardápio visível para todos livremente */}
               <button
                 onClick={() => setAbaAtiva('cardapio')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cardapio' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
               >
                 📋 Cardápio
               </button>
-              <button
-                onClick={() => setAbaAtiva('comandas')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'comandas' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
-              >
-                💳 Comandas
-              </button>
 
-              {/* ABA COZINHA SEPARADA */}
-              <button
-                onClick={() => setAbaAtiva('cozinha')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cozinha' ? 'bg-rose-500 text-slate-950' : 'text-rose-400'}`}
-              >
-                🔥 Cozinha ({pedidos.length})
-              </button>
-
-              {/* ABA GERENCIAMENTO DE CARDÁPIO (Apenas Gestor/Adm) */}
-              {(usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
-                <button
-                  onClick={() => setAbaAtiva('gerenciar')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'gerenciar' ? 'bg-emerald-500 text-slate-950' : 'text-emerald-400'}`}
-                >
-                  ⚙️ Gerenciar Cardápio
-                </button>
+              {/* Abas restritas a funcionários logados */}
+              {usuarioLogado && (
+                <>
+                  <button
+                    onClick={() => setAbaAtiva('salao')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'salao' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
+                  >
+                    🪑 Salão ({totalMesasOcupadas})
+                  </button>
+                  <button
+                    onClick={() => setAbaAtiva('comandas')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'comandas' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
+                  >
+                    💳 Comandas
+                  </button>
+                  <button
+                    onClick={() => setAbaAtiva('cozinha')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cozinha' ? 'bg-rose-500 text-slate-950' : 'text-rose-400'}`}
+                  >
+                    🔥 Cozinha ({pedidos.length})
+                  </button>
+                  {(usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
+                    <button
+                      onClick={() => setAbaAtiva('gerenciar')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'gerenciar' ? 'bg-emerald-500 text-slate-950' : 'text-emerald-400'}`}
+                    >
+                      ⚙️ Gerenciar
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
-            <button
-              onClick={handleLogout}
-              className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-rose-500 hover:text-white transition-all"
-            >
-              Sair
-            </button>
+            {usuarioLogado ? (
+              <button
+                onClick={handleLogout}
+                className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-rose-500 hover:text-white transition-all"
+              >
+                Sair
+              </button>
+            ) : (
+              <button
+                onClick={() => setModalLoginAberto(true)}
+                className="bg-slate-800 border border-slate-700 text-cyan-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all"
+              >
+                🔐 Painel Funcionário
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -445,55 +363,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ABA 1: SALÃO / MAPA DE MESAS */}
-      {abaAtiva === 'salao' && (
-        <main className="max-w-4xl mx-auto space-y-4">
-          <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
-            <div>
-              <h2 className="text-base font-bold text-slate-100">Mapa Visual do Salão</h2>
-              <p className="text-xs text-slate-400">Clique na mesa para abrir atendimento ou lançar itens.</p>
-            </div>
-            <div className="flex items-center gap-4 text-xs font-bold">
-              <span className="text-emerald-400">Livre: {TOTAL_MESAS_SALAO - totalMesasOcupadas}</span>
-              <span className="text-rose-400">Ocupada: {totalMesasOcupadas}</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-            {listaMesas.map((m) => (
-              <button
-                key={m.numero}
-                onClick={() => selecionarMesaSalao(m.numero)}
-                className={`p-4 rounded-2xl border text-left flex flex-col justify-between h-32 transition-all transform hover:-translate-y-1 shadow-lg ${
-                  m.ocupada ? 'bg-rose-950/40 border-rose-500/50' : 'bg-slate-900 border-slate-800 hover:border-emerald-500/60'
-                }`}
-              >
-                <div className="flex justify-between items-center w-full">
-                  <span className="text-xs font-black text-slate-400 uppercase">Mesa</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${m.ocupada ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
-                    {m.ocupada ? '• OCUPADA' : '• LIVRE'}
-                  </span>
-                </div>
-                <div className="my-1">
-                  <span className="text-3xl font-black text-slate-100">{m.numero}</span>
-                </div>
-                {m.ocupada ? (
-                  <div className="text-[11px] border-t border-rose-500/20 pt-1.5 truncate">
-                    <p className="font-bold text-slate-200 truncate">{m.dados.cliente}</p>
-                    <p className="text-rose-400 font-black">R$ {m.dados.totalComanda.toFixed(2)}</p>
-                  </div>
-                ) : (
-                  <div className="text-[10px] text-emerald-400 font-bold border-t border-slate-800/80 pt-1.5">
-                    + Abrir Mesa
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        </main>
-      )}
-
-      {/* ABA 2: CARDÁPIO E PEDIDOS */}
+      {/* CARDÁPIO PRINCIPAL (LIVRE, SEM LOGIN) */}
       {abaAtiva === 'cardapio' && (
         <main className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
           <section className="md:col-span-2 space-y-4">
@@ -560,7 +430,7 @@ export default function App() {
 
             <div className="border-t border-slate-800 pt-3 space-y-3">
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">Atendimento</span>
+                <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">Identificação do Pedido</span>
                 <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
                   <button type="button" onClick={() => setTipoAtendimento('mesa')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'mesa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Mesa</button>
                   <button type="button" onClick={() => setTipoAtendimento('avulso')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'avulso' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Avulso</button>
@@ -586,7 +456,7 @@ export default function App() {
 
                 <input
                   type="tel"
-                  placeholder="Celular do Cliente"
+                  placeholder="Seu Celular"
                   value={celularCliente}
                   onChange={handleCelularChange}
                   className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
@@ -594,7 +464,7 @@ export default function App() {
 
                 <input
                   type="text"
-                  placeholder="Nome do Cliente"
+                  placeholder="Seu Nome"
                   value={nomeCliente}
                   onChange={(e) => setNomeCliente(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
@@ -611,19 +481,45 @@ export default function App() {
                 disabled={carrinho.length === 0}
                 className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 text-slate-950 font-extrabold py-3 rounded-xl text-xs shadow-lg"
               >
-                Lançar Pedido para Cozinha
+                Enviar Pedido
               </button>
             </div>
           </section>
         </main>
       )}
 
-      {/* ABA 3: COMANDAS */}
-      {abaAtiva === 'comandas' && (
+      {/* PAINEL DE SALÃO (RESTRITO) */}
+      {abaAtiva === 'salao' && usuarioLogado && (
         <main className="max-w-4xl mx-auto space-y-4">
-          <h2 className="text-lg font-bold text-slate-100">Controle de Mesas & Comandas Abertas</h2>
+          <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
+            <div>
+              <h2 className="text-base font-bold text-slate-100">Mapa Visual do Salão</h2>
+              <p className="text-xs text-slate-400">Gerenciamento de mesas ocupadas e livres.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {listaMesas.map((m) => (
+              <div key={m.numero} className={`p-4 rounded-2xl border flex flex-col justify-between h-32 ${m.ocupada ? 'bg-rose-950/40 border-rose-500/50' : 'bg-slate-900 border-slate-800'}`}>
+                <div className="flex justify-between items-center w-full">
+                  <span className="text-xs font-black text-slate-400">Mesa</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${m.ocupada ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                    {m.ocupada ? 'OCUPADA' : 'LIVRE'}
+                  </span>
+                </div>
+                <div className="my-1"><span className="text-3xl font-black text-slate-100">{m.numero}</span></div>
+                {m.ocupada && <div className="text-[10px] text-rose-400 font-bold truncate">R$ {m.dados.totalComanda.toFixed(2)}</div>}
+              </div>
+            ))}
+          </div>
+        </main>
+      )}
+
+      {/* PAINEL DE COMANDAS (RESTRITO) */}
+      {abaAtiva === 'comandas' && usuarioLogado && (
+        <main className="max-w-4xl mx-auto space-y-4">
+          <h2 className="text-lg font-bold text-slate-100">Controle de Comandas Abertas</h2>
           {Object.keys(comandasAgrupadas).length === 0 ? (
-            <p className="text-slate-500 text-xs">Nenhuma mesa aberta no momento.</p>
+            <p className="text-slate-500 text-xs">Nenhuma comanda aberta no momento.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(comandasAgrupadas).map(([local, info]) => (
@@ -635,11 +531,8 @@ export default function App() {
                     </div>
                     <div className="text-right">
                       <span className="text-xs font-black text-cyan-400 block">R$ {info.totalComanda.toFixed(2)}</span>
-                      <button
-                        onClick={() => { setMesaFechamento(info); setQtdPessoas(1); }}
-                        className="mt-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-1 rounded text-[11px] font-bold"
-                      >
-                        Fechar Mesa
+                      <button onClick={() => setMesaFechamento(info)} className="mt-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-1 rounded text-[11px] font-bold">
+                        Fechar Comanda
                       </button>
                     </div>
                   </div>
@@ -650,17 +543,15 @@ export default function App() {
         </main>
       )}
 
-      {/* ABA 4: COZINHA SEPARADA */}
-      {abaAtiva === 'cozinha' && (
+      {/* PAINEL DA COZINHA (RESTRITO) */}
+      {abaAtiva === 'cozinha' && usuarioLogado && (
         <main className="max-w-4xl mx-auto space-y-4">
           <div className="bg-rose-950/20 border border-rose-500/30 p-4 rounded-xl">
             <h2 className="text-lg font-black text-rose-400">🔥 Painel Exclusivo da Cozinha (KDS)</h2>
-            <p className="text-xs text-slate-400">Pedidos enviados em tempo real pelos garçons/atendentes.</p>
           </div>
-
           {pedidos.length === 0 ? (
             <div className="bg-slate-900 p-8 rounded-xl border border-slate-800 text-center text-slate-500 text-sm">
-              Nenhum pedido pendente na cozinha no momento. 🧊
+              Nenhum pedido pendente na cozinha. 🧊
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -673,7 +564,7 @@ export default function App() {
                     </div>
                     <span className="text-xs text-slate-400 font-mono">🕒 {p.horario}</span>
                   </div>
-                  <div className="text-[11px] text-slate-400">Atendente: <span className="text-cyan-400 font-bold">{p.atendente}</span></div>
+                  <div className="text-[11px] text-slate-400">Atendente/Cliente: <span className="text-cyan-400 font-bold">{p.atendente}</span></div>
                   <ul className="space-y-2 text-xs">
                     {p.itens.map((it, idx) => (
                       <li key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
@@ -690,46 +581,22 @@ export default function App() {
         </main>
       )}
 
-      {/* ABA 5: GERENCIAR CARDÁPIO (Gestor / Admin) */}
-      {abaAtiva === 'gerenciar' && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
+      {/* GERENCIAR CARDÁPIO (RESTRITO ADM/GESTOR) */}
+      {abaAtiva === 'gerenciar' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
         <main className="max-w-4xl mx-auto space-y-5">
           <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
             <h2 className="text-base font-bold text-emerald-400">⚙️ Adicionar Novo Item ao Cardápio</h2>
             <form onSubmit={adicionarItemCardapio} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input
-                type="text"
-                placeholder="Nome do Item"
-                value={novoNomeItem}
-                onChange={(e) => setNovoNomeItem(e.target.value)}
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
-              />
-              <select
-                value={novaCategoriaItem}
-                onChange={(e) => setNovaCategoriaItem(e.target.value)}
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
-              >
+              <input type="text" placeholder="Nome do Item" value={novoNomeItem} onChange={(e) => setNovoNomeItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
+              <select value={novaCategoriaItem} onChange={(e) => setNovaCategoriaItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white">
                 <option value="Espetinhos">Espetinhos</option>
                 <option value="Bebidas">Bebidas</option>
                 <option value="Porções">Porções</option>
-                <option value="Acompanhamentos">Acompanhamentos</option>
               </select>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Preço (R$)"
-                value={novoPrecoItem}
-                onChange={(e) => setNovoPrecoItem(e.target.value)}
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
-              />
-              <input
-                type="text"
-                placeholder="Descrição opcional"
-                value={novaDescItem}
-                onChange={(e) => setNovaDescItem(e.target.value)}
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
-              />
+              <input type="number" step="0.01" placeholder="Preço (R$)" value={novoPrecoItem} onChange={(e) => setNovoPrecoItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
+              <input type="text" placeholder="Descrição opcional" value={novaDescItem} onChange={(e) => setNovaDescItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
               <button type="submit" className="sm:col-span-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl text-xs">
-                Cadastrar Item no Cardápio
+                Cadastrar Item
               </button>
             </form>
           </div>
@@ -742,11 +609,8 @@ export default function App() {
                   <div>
                     <span className="font-bold text-white">{i.nome}</span>
                     <span className="text-cyan-400 ml-2">R$ {i.preco.toFixed(2)}</span>
-                    <span className="text-slate-500 block text-[10px]">{i.categoria}</span>
                   </div>
-                  <button onClick={() => removerItemCardapio(i.id)} className="bg-rose-500/20 text-rose-400 px-3 py-1 rounded-lg font-bold">
-                    Remover
-                  </button>
+                  <button onClick={() => removerItemCardapio(i.id)} className="bg-rose-500/20 text-rose-400 px-3 py-1 rounded-lg font-bold">Remover</button>
                 </div>
               ))}
             </div>
@@ -754,7 +618,48 @@ export default function App() {
         </main>
       )}
 
-      {/* MODAL DE CUSTOMIZAÇÃO DO ITEM */}
+      {/* MODAL DE LOGIN */}
+      {modalLoginAberto && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-5">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <h3 className="font-bold text-base text-cyan-400">Acesso Restrito - Funcionários</h3>
+              <button onClick={() => setModalLoginAberto(false)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Perfil:</label>
+                <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                  <button type="button" onClick={() => setTipoSelecionado('garcom')} className={`py-2 font-bold rounded-lg ${tipoSelecionado === 'garcom' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Garçom</button>
+                  <button type="button" onClick={() => setTipoSelecionado('gestor')} className={`py-2 font-bold rounded-lg ${tipoSelecionado === 'gestor' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Gestor</button>
+                  <button type="button" onClick={() => setTipoSelecionado('adm')} className={`py-2 font-bold rounded-lg ${tipoSelecionado === 'adm' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Admin</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Seu Nome:</label>
+                <input type="text" placeholder="Nome do colaborador" value={inputUsuario} onChange={(e) => setInputUsuario(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
+              </div>
+
+              {tipoSelecionado === 'adm' && (
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Senha Admin:</label>
+                  <input type="password" placeholder="Digite @adm123" value={inputSenha} onChange={(e) => setInputSenha(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-cyan-400" />
+                </div>
+              )}
+
+              {erroLogin && <p className="text-xs font-bold text-rose-400 text-center">{erroLogin}</p>}
+
+              <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">
+                Entrar no Painel
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CUSTOMIZAÇÃO DE ITEM */}
       {itemSelecionado && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 space-y-4 shadow-2xl">
@@ -802,7 +707,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL DE FECHAMENTO DE MESA */}
+      {/* MODAL FECHAMENTO */}
       {mesaFechamento && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 space-y-4 shadow-2xl">
@@ -813,14 +718,12 @@ export default function App() {
               </div>
               <button onClick={() => setMesaFechamento(null)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
             </div>
-
             <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-slate-800">
-              <span className="text-slate-400">Total da Comanda:</span>
+              <span className="text-slate-400">Total:</span>
               <span className="text-lg font-black text-cyan-400">R$ {mesaFechamento.totalComanda.toFixed(2)}</span>
             </div>
-
             <button onClick={() => encerarComanda(mesaFechamento.local)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">
-              🏁 Receber Pagamento e Liberar Mesa
+              🏁 Receber Pagamento e Liberar
             </button>
           </div>
         </div>
