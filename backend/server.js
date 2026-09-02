@@ -1,7 +1,7 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
 
 const app = express();
 app.use(cors());
@@ -14,41 +14,33 @@ const io = new Server(server, {
   }
 });
 
-// Memória volátil do servidor para guardar os pedidos ativos
 let pedidosGlobais = [];
 
 io.on('connection', (socket) => {
   console.log(`🔌 Novo cliente conectado: ${socket.id}`);
 
-  // Envia a lista atual de pedidos assim que o cliente conecta
   socket.emit('atualizar_lista_pedidos', pedidosGlobais);
 
-  // Cliente solicita pedidos explicitamente
   socket.on('solicitar_pedidos', () => {
     socket.emit('atualizar_lista_pedidos', pedidosGlobais);
   });
 
-  // Recebe novo pedido de qualquer cliente/garçom e retransmite para todos
   socket.on('novo_pedido', (pedido) => {
-    // Evita duplicatas
     if (!pedidosGlobais.some(p => p.id === pedido.id)) {
       pedidosGlobais.unshift(pedido);
     }
     console.log(`📦 Novo pedido recebido da ${pedido.local} (${pedido.cliente})`);
     
-    // Envia para todos os outros (e cozinha/gestor)
     io.emit('pedido_recebido', pedido);
     io.emit('atualizar_lista_pedidos', pedidosGlobais);
   });
 
-  // Atualiza status do pedido (Preparando, Pronto, etc.)
   socket.on('atualizar_status_pedido', ({ idPedido, status }) => {
     pedidosGlobais = pedidosGlobais.map(p => p.id === idPedido ? { ...p, status } : p);
     io.emit('status_pedido_atualizado', { idPedido, status });
     io.emit('atualizar_lista_pedidos', pedidosGlobais);
   });
 
-  // Fecha comanda da mesa
   socket.on('fechar_comanda', (localChave) => {
     pedidosGlobais = pedidosGlobais.filter(p => {
       let chave = p.local;
