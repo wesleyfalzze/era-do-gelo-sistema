@@ -1,32 +1,20 @@
+/**
+ * ============================================================================
+ * PACOTE 1: IMPORTAÇÕES, CONSTANTES E CONFIGURAÇÃO SOCKET
+ * ============================================================================
+ */
 import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
-const VERSAO_SISTEMA = "v3.2.0 • Atualizado em 02/09/2026 22:50";
+const VERSAO_SISTEMA = "v3.4.0 • Modularizado por Pacotes";
 const TOTAL_MESAS_SALAO = 15;
 
-const OPCOES_MOLHOS = [
-  'Molho Alho Caseiro',
-  'Molho Barbecue',
-  'Molho Verde / Cheiro Verde',
-  'Molho Picante / Pimenta',
-  'Sem Molho'
-];
-
-const FORMAS_PAGAMENTO = [
-  'Dinheiro',
-  'PIX',
-  'Cartão de Crédito',
-  'Cartão de Débito'
-];
-
-const MOTIVOS_CANCELAMENTO = [
-  'Não entregue',
-  'Recusado pelo cliente',
-  'Outros'
-];
+const OPCOES_MOLHOS = ['Molho Alho Caseiro', 'Molho Barbecue', 'Molho Verde / Cheiro Verde', 'Molho Picante / Pimenta', 'Sem Molho'];
+const FORMAS_PAGAMENTO = ['Dinheiro', 'PIX', 'Cartão de Crédito', 'Cartão de Débito'];
+const MOTIVOS_CANCELAMENTO = ['Não entregue', 'Recusado pelo cliente', 'Outros'];
 
 const CARDAPIO_PADRAO_INICIAL = [
   { id: 1, nome: 'Espetinho de Boi (Alcatra)', categoria: 'Espetinhos', preco: 12.00, descricao: 'Carne macia', impressora: 'Cozinha 1' },
@@ -42,6 +30,11 @@ const USUARIOS_PADRAO_INICIAL = [
 ];
 
 export default function App() {
+  /**
+   * ============================================================================
+   * PACOTE 2: ESTADOS DA APLICAÇÃO (STATE MANAGEMENT)
+   * ============================================================================
+   */
   const [bancoConectado, setBancoConectado] = useState(true);
   const [usuarioLogado, setUsuarioLogado] = useState(null); 
   const [modalLoginAberto, setModalLoginAberto] = useState(false);
@@ -50,7 +43,6 @@ export default function App() {
   const [inputSenha, setInputSenha] = useState('');
   const [erroLogin, setErroLogin] = useState('');
 
-  // Usuários puxados e sincronizados do banco de dados
   const [listaUsuarios, setListaUsuarios] = useState(USUARIOS_PADRAO_INICIAL);
   const [novoUsuario, setNovoUsuario] = useState('');
   const [novoSenhaUser, setNovoSenhaUser] = useState('');
@@ -68,7 +60,6 @@ export default function App() {
   const [clientesBanco, setClientesBanco] = useState([]);
   const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
 
-  // Configuração de Impressora Direta
   const [configImpressoras, setConfigImpressoras] = useState({
     cozinha1: '\\\\SERVIDOR\\Cozinha1',
     cozinha2: '\\\\SERVIDOR\\Cozinha2'
@@ -89,7 +80,7 @@ export default function App() {
   const [novaCategoriaItem, setNovaCategoriaItem] = useState('Espetinhos');
   const [novoPrecoItem, setNovoPrecoItem] = useState('');
   const [novaDescItem, setNovaDescItem] = useState('');
-  const [novaImpressoraItem, setNovaImpressoraItem] = useState('Cozinha 1'); // Padrão Cozinha 1
+  const [novaImpressoraItem, setNovaImpressoraItem] = useState('Cozinha 1');
 
   const [tipoAtendimento, setTipoAtendimento] = useState('mesa');
   const [numMesa, setNumMesa] = useState('');
@@ -110,15 +101,27 @@ export default function App() {
   const [mesaFechamento, setMesaFechamento] = useState(null);
   const [pagamentosMesa, setPagamentosMesa] = useState({});
 
-  // Teste automático de conexão com o banco ao carregar a aplicação
+  /**
+   * ============================================================================
+   * PACOTE 3: FUNÇÕES DE CONEXÃO E SINCRONIZAÇÃO EM TEMPO REAL
+   * ============================================================================
+   */
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/status`)
-      .then(res => res.json())
-      .then(data => setBancoConectado(data.conectado))
-      .catch(() => setBancoConectado(false));
+    function testarConexaoBackend() {
+      fetch(`${BACKEND_URL}/api/status`)
+        .then(res => res.json())
+        .then(data => setBancoConectado(data.conectado))
+        .catch(() => setBancoConectado(false));
+    }
+
+    testarConexaoBackend();
 
     socket.on('connect', () => {
-      socket.emit('solicitar_pedidos');
+      try {
+        socket.emit('solicitar_pedidos');
+      } catch (erro) {
+        console.error("❌ [ERRO] Evento socket connect:", erro);
+      }
     });
 
     socket.on('atualizar_lista_pedidos', (lista) => { if (lista) setPedidos(lista); });
@@ -129,12 +132,16 @@ export default function App() {
     socket.on('atualizar_config_impressora', (cfg) => { if (cfg) setConfigImpressoras(cfg); });
 
     socket.on('pedido_recebido', (novoPedido) => {
-      setNovoPedidoAlerta(novoPedido);
       try {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.play().catch(() => {});
-      } catch (e) {}
-      setTimeout(() => setNovoPedidoAlerta(null), 8000);
+        if (usuarioLogado) {
+          setNovoPedidoAlerta(novoPedido);
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+          audio.play().catch(() => {});
+          setTimeout(() => setNovoPedidoAlerta(null), 8000);
+        }
+      } catch (erro) {
+        console.error("❌ [ERRO] Evento pedido_recebido:", erro);
+      }
     });
 
     return () => {
@@ -147,200 +154,361 @@ export default function App() {
       socket.off('atualizar_config_impressora');
       socket.off('pedido_recebido');
     };
-  }, []);
+  }, [usuarioLogado]);
 
-  // Autofill automático do nome ao digitar o celular (consultando o banco de dados)
-  const handleCelularChange = (e) => {
-    const tel = e.target.value;
-    setCelularCliente(tel);
-    
-    const encontrado = clientesBanco.find(c => c.celular === tel);
-    if (encontrado) {
-      setNomeCliente(encontrado.nome);
+  /**
+   * ============================================================================
+   * PACOTE 4: FUNÇÕES DE AUTENTICAÇÃO E SESSÃO
+   * ============================================================================
+   */
+  function handleLogin(e) {
+    try {
+      e.preventDefault();
+      setErroLogin('');
+
+      const userEncontrado = listaUsuarios.find(
+        (u) => u.usuario.toLowerCase() === inputUsuario.trim().toLowerCase() && u.senha === inputSenha
+      );
+
+      if (!userEncontrado) {
+        setErroLogin('❌ Usuário ou senha incorretos!');
+        return;
+      }
+
+      setUsuarioLogado(userEncontrado);
+      setModalLoginAberto(false);
+      setInputUsuario('');
+      setInputSenha('');
+      setAbaAtiva(userEncontrado.tipo === 'garcom' ? 'garcom' : 'salao');
+    } catch (erro) {
+      console.error("❌ [ERRO] Função handleLogin:", erro);
     }
-  };
+  }
 
-  // Disparo de impressão direta automática (silenciosa sem caixa de diálogo se suportado)
-  const dispararImpressaoDireta = (pedido) => {
-    console.log(`🖨️ Imprimindo pedido ${pedido.id} na impressora configurada...`);
-    // Aqui aciona o driver ou rota de impressão direta silenciosa
-  };
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    setErroLogin('');
-
-    const userEncontrado = listaUsuarios.find(
-      (u) => u.usuario.toLowerCase() === inputUsuario.trim().toLowerCase() && u.senha === inputSenha
-    );
-
-    if (!userEncontrado) {
-      setErroLogin('❌ Usuário ou senha incorretos!');
-      return;
+  function handleLogout() {
+    try {
+      setUsuarioLogado(null);
+      setMesaAlvoGarcom(null);
+      setAbaAtiva('cardapio');
+    } catch (erro) {
+      console.error("❌ [ERRO] Função handleLogout:", erro);
     }
+  }
 
-    setUsuarioLogado(userEncontrado);
-    setModalLoginAberto(false);
-    setInputUsuario('');
-    setInputSenha('');
-    setAbaAtiva(userEncontrado.tipo === 'garcom' ? 'garcom' : 'salao');
-  };
+  /**
+   * ============================================================================
+   * PACOTE 5: FUNÇÕES DE CLIENTES E AUTO-PREENCHIMENTO
+   * ============================================================================
+   */
+  function handleCelularChange(e) {
+    try {
+      const tel = e.target.value;
+      setCelularCliente(tel);
+      const encontrado = clientesBanco.find(c => c.celular === tel);
+      if (encontrado) {
+        setNomeCliente(encontrado.nome);
+      }
+    } catch (erro) {
+      console.error("❌ [ERRO] Função handleCelularChange:", erro);
+    }
+  }
 
-  const handleLogout = () => {
-    setUsuarioLogado(null);
-    setMesaAlvoGarcom(null);
-    setAbaAtiva('cardapio');
-  };
+  /**
+   * ============================================================================
+   * PACOTE 6: FUNÇÕES DE PEDIDOS, ITENS E MODAL DE OPÇÕES
+   * ============================================================================
+   */
+  function abrirDetalhesItem(item) {
+    try {
+      setItemSelecionado(item);
+      setQuantidadeModal(1);
+      setPontoCarne('Ao ponto');
+      setMolhosSelecionados([]);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função abrirDetalhesItem:", erro);
+    }
+  }
 
-  const atualizarStatusPedido = (idPedido, novoStatus) => {
-    socket.emit('atualizar_status_pedido', { idPedido, status: novoStatus, entregue: false });
-    setMensagem(`🔔 Pedido atualizado para: ${novoStatus}`);
-    setTimeout(() => setMensagem(''), 3000);
-  };
+  function alternarMolho(molho) {
+    try {
+      if (molho === 'Sem Molho') {
+        setMolhosSelecionados(['Sem Molho']);
+        return;
+      }
+      setMolhosSelecionados((prev) => {
+        const filtrados = prev.filter((m) => m !== 'Sem Molho');
+        return filtrados.includes(molho) ? filtrados.filter((m) => m !== molho) : [...filtrados, molho];
+      });
+    } catch (erro) {
+      console.error("❌ [ERRO] Função alternarMolho:", erro);
+    }
+  }
 
-  const confirmarCancelamentoPedido = () => {
-    if (!pedidoCancelamentoAlvo) return;
-    socket.emit('atualizar_status_pedido', {
-      idPedido: pedidoCancelamentoAlvo.id,
-      status: 'Cancelado',
-      entregue: false,
-      cancelado: true,
-      motivoCancelamento: motivoCancelamentoSel
-    });
-    setMensagem(`⚠️ Pedido cancelado (${motivoCancelamentoSel})`);
-    setPedidoCancelamentoAlvo(null);
-    setTimeout(() => setMensagem(''), 3000);
-  };
+  function confirmarAdicaoModal() {
+    try {
+      if (!itemSelecionado) return;
+      const novoItemCarrinho = {
+        ...itemSelecionado,
+        quantidade: quantidadeModal,
+        ponto: itemSelecionado.categoria === 'Espetinhos' ? pontoCarne : null,
+        molhos: molhosSelecionados,
+        precoTotalItem: itemSelecionado.preco * quantidadeModal
+      };
+      setCarrinho((prev) => [...prev, novoItemCarrinho]);
+      setItemSelecionado(null);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função confirmarAdicaoModal:", erro);
+    }
+  }
 
-  const cadastrarFuncionario = (e) => {
-    e.preventDefault();
-    if (!novoUsuario || !novoSenhaUser || !novoNomeUser) return;
-    const novo = { usuario: novoUsuario.trim(), senha: novoSenhaUser, nome: novoNomeUser.trim(), tipo: novoTipoUser };
-    const novaLista = [...listaUsuarios, novo];
-    setListaUsuarios(novaLista);
-    socket.emit('salvar_usuarios', novaLista);
-    setNovoUsuario(''); setNovoSenhaUser(''); setNovoNomeUser('');
-    setMensagem('✅ Colaborador cadastrado no banco!');
-    setTimeout(() => setMensagem(''), 3000);
-  };
+  function enviarPedido() {
+    try {
+      if (carrinho.length === 0) return;
 
-  const removerFuncionario = (userLogin) => {
-    if (userLogin === 'admin') return;
-    const novaLista = listaUsuarios.filter((u) => u.usuario !== userLogin);
-    setListaUsuarios(novaLista);
-    socket.emit('salvar_usuarios', novaLista);
-  };
+      let identificadorFinal = '';
+      let numeroMesaFinal = 'Avulso';
+      let nomeClienteFinal = nomeCliente || 'Cliente';
 
-  // Cadastro de item no cardápio com atrelamento padrão à Cozinha 1
-  const adicionarItemCardapio = (e) => {
-    e.preventDefault();
-    if (!novoNomeItem || !novoPrecoItem) return;
-    const novo = {
-      id: Date.now(),
-      nome: novoNomeItem,
-      categoria: novaCategoriaItem,
-      preco: Number(novoPrecoItem),
-      descricao: novaDescItem,
-      impressora: novaImpressoraItem // Atrela à Cozinha 1 ou 2
-    };
-    const novoCardapio = [...cardapio, novo];
-    setCardapio(novoCardapio);
-    socket.emit('salvar_cardapio', novoCardapio);
-    setNovoNomeItem(''); setNovoPrecoItem(''); setNovaDescItem('');
-    setMensagem('✅ Item adicionado com impressora atrelada!');
-    setTimeout(() => setMensagem(''), 3000);
-  };
+      if (mesaAlvoGarcom) {
+        const numFmt = String(mesaAlvoGarcom).padStart(2, '0');
+        identificadorFinal = `Mesa ${numFmt}`;
+        numeroMesaFinal = numFmt;
+        nomeClienteFinal = `Mesa ${numFmt} (${usuarioLogado.nome})`;
+      } else if (tipoAtendimento === 'mesa') {
+        if (!numMesa) {
+          setMensagem('⚠️ Informe o número da mesa!');
+          setTimeout(() => setMensagem(''), 3000);
+          return;
+        }
+        const numFmt = String(numMesa).padStart(2, '0');
+        identificadorFinal = `Mesa ${numFmt}`;
+        numeroMesaFinal = numFmt;
+      } else {
+        identificadorFinal = `AVULSO: ${identificacaoAvulsa || 'Balcão'}`;
+        numeroMesaFinal = 'Avulso';
+      }
 
-  const removerItemCardapio = (id) => {
-    const novoCardapio = cardapio.filter((i) => i.id !== id);
-    setCardapio(novoCardapio);
-    socket.emit('salvar_cardapio', novoCardapio);
-  };
+      if (celularCliente && nomeCliente) {
+        socket.emit('salvar_cliente', { celular: celularCliente, nome: nomeCliente });
+      }
 
-  const salvarConfigImpressoras = (e) => {
-    e.preventDefault();
-    socket.emit('salvar_config_impressora', configImpressoras);
-    setMensagem('🖨️ Caminhos de impressora direta salvos!');
-    setTimeout(() => setMensagem(''), 3000);
-  };
+      const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
+      const origemAtendimento = usuarioLogado ? `${usuarioLogado.tipo}: ${usuarioLogado.nome}` : 'Cliente (Autoatendimento)';
 
-  const categoriasUnicas = ['Todas', ...new Set(cardapio.map((item) => item.categoria))];
+      const pedidoObjeto = {
+        id: Date.now(),
+        local: identificadorFinal,
+        tipo: mesaAlvoGarcom ? 'mesa' : tipoAtendimento,
+        mesa: numeroMesaFinal,
+        cliente: nomeClienteFinal,
+        celular: celularCliente || 'Não informado',
+        atendente: origemAtendimento,
+        itens: carrinho,
+        total: totalCalculado,
+        status: 'Pendente',
+        entregue: false,
+        cancelado: false,
+        horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      };
 
-  const abrirDetalhesItem = (item) => {
-    setItemSelecionado(item);
-    setQuantidadeModal(1);
-    setPontoCarne('Ao ponto');
-    setMolhosSelecionados([]);
-  };
+      setPedidoEnviadoSucesso(pedidoObjeto);
+      socket.emit('novo_pedido', pedidoObjeto);
+      setCarrinho([]);
+      setMesaAlvoGarcom(null);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função enviarPedido:", erro);
+    }
+  }
 
-  const confirmarAdicaoModal = () => {
-    if (!itemSelecionado) return;
-    const novoItemCarrinho = {
-      ...itemSelecionado,
-      quantidade: quantidadeModal,
-      ponto: itemSelecionado.categoria === 'Espetinhos' ? pontoCarne : null,
-      molhos: molhosSelecionados,
-      precoTotalItem: itemSelecionado.preco * quantidadeModal
-    };
-    setCarrinho((prev) => [...prev, novoItemCarrinho]);
-    setItemSelecionado(null);
-  };
+  /**
+   * ============================================================================
+   * PACOTE 7: FUNÇÕES DE GESTÃO DE COZINHA E GARÇOM
+   * ============================================================================
+   */
+  function atualizarStatusPedido(idPedido, novoStatus) {
+    try {
+      socket.emit('atualizar_status_pedido', { idPedido, status: novoStatus, entregue: false });
+      setMensagem(`🔔 Pedido atualizado para: ${novoStatus}`);
+      setTimeout(() => setMensagem(''), 3000);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função atualizarStatusPedido:", erro);
+    }
+  }
 
-  const enviarPedido = () => {
-    if (carrinho.length === 0) return;
+  function confirmarCancelamentoPedido() {
+    try {
+      if (!pedidoCancelamentoAlvo) return;
+      socket.emit('atualizar_status_pedido', {
+        idPedido: pedidoCancelamentoAlvo.id,
+        status: 'Cancelado',
+        entregue: false,
+        cancelado: true,
+        motivoCancelamento: motivoCancelamentoSel
+      });
+      setMensagem(`⚠️ Pedido cancelado (${motivoCancelamentoSel})`);
+      setPedidoCancelamentoAlvo(null);
+      setTimeout(() => setMensagem(''), 3000);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função confirmarCancelamentoPedido:", erro);
+    }
+  }
 
-    let identificadorFinal = '';
-    let numeroMesaFinal = 'Avulso';
-    let nomeClienteFinal = nomeCliente || 'Cliente';
+  /**
+   * ============================================================================
+   * PACOTE 8: FUNÇÕES DE CONFIGURAÇÃO (CARDÁPIO, USUÁRIOS E IMPRESSORAS)
+   * ============================================================================
+   */
+  function cadastrarFuncionario(e) {
+    try {
+      e.preventDefault();
+      if (!novoUsuario || !novoSenhaUser || !novoNomeUser) return;
+      const novo = { usuario: novoUsuario.trim(), senha: novoSenhaUser, nome: novoNomeUser.trim(), tipo: novoTipoUser };
+      const novaLista = [...listaUsuarios, novo];
+      setListaUsuarios(novaLista);
+      socket.emit('salvar_usuarios', novaLista);
+      setNovoUsuario(''); setNovoSenhaUser(''); setNovoNomeUser('');
+      setMensagem('✅ Colaborador cadastrado!');
+      setTimeout(() => setMensagem(''), 3000);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função cadastrarFuncionario:", erro);
+    }
+  }
 
-    if (mesaAlvoGarcom) {
-      const numFmt = String(mesaAlvoGarcom).padStart(2, '0');
-      identificadorFinal = `Mesa ${numFmt}`;
-      numeroMesaFinal = numFmt;
-      nomeClienteFinal = `Mesa ${numFmt} (${usuarioLogado.nome})`;
-    } else if (tipoAtendimento === 'mesa') {
-      if (!numMesa) {
-        setMensagem('⚠️ Informe o número da mesa!');
+  function removerFuncionario(userLogin) {
+    try {
+      if (userLogin === 'admin') return;
+      const novaLista = listaUsuarios.filter((u) => u.usuario !== userLogin);
+      setListaUsuarios(novaLista);
+      socket.emit('salvar_usuarios', novaLista);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função removerFuncionario:", erro);
+    }
+  }
+
+  function adicionarItemCardapio(e) {
+    try {
+      e.preventDefault();
+      if (!novoNomeItem || !novoPrecoItem) return;
+      const novo = {
+        id: Date.now(),
+        nome: novoNomeItem,
+        categoria: novaCategoriaItem,
+        preco: Number(novoPrecoItem),
+        descricao: novaDescItem,
+        impressora: novaImpressoraItem
+      };
+      const novoCardapio = [...cardapio, novo];
+      setCardapio(novoCardapio);
+      socket.emit('salvar_cardapio', novoCardapio);
+      setNovoNomeItem(''); setNovoPrecoItem(''); setNovaDescItem('');
+      setMensagem('✅ Item adicionado!');
+      setTimeout(() => setMensagem(''), 3000);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função adicionarItemCardapio:", erro);
+    }
+  }
+
+  function removerItemCardapio(id) {
+    try {
+      const novoCardapio = cardapio.filter((i) => i.id !== id);
+      setCardapio(novoCardapio);
+      socket.emit('salvar_cardapio', novoCardapio);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função removerItemCardapio:", erro);
+    }
+  }
+
+  function salvarConfigImpressoras(e) {
+    try {
+      e.preventDefault();
+      socket.emit('salvar_config_impressora', configImpressoras);
+      setMensagem('🖨️ Caminhos salvos!');
+      setTimeout(() => setMensagem(''), 3000);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função salvarConfigImpressoras:", erro);
+    }
+  }
+
+  /**
+   * ============================================================================
+   * PACOTE 9: FUNÇÕES DE COMANDAS E FECHAMENTO DE CAIXA
+   * ============================================================================
+   */
+  function consultarContaPorMesa(e) {
+    try {
+      e.preventDefault();
+      if (!mesaConsultaCliente) return;
+      const numFmt = String(mesaConsultaCliente).padStart(2, '0');
+      const chaveBuscada = `Mesa ${numFmt}`;
+      const comandaEncontrada = comandasAgrupadas[chaveBuscada];
+
+      if (!comandaEncontrada) {
+        setContaConsultada({ status: 'nao_encontrada', local: chaveBuscada });
+        return;
+      }
+      setContaConsultada({ status: 'encontrado', local: chaveBuscada, pedidos: comandaEncontrada.pedidos, total: comandaEncontrada.totalComanda });
+    } catch (erro) {
+      console.error("❌ [ERRO] Função consultarContaPorMesa:", erro);
+    }
+  }
+
+  function solicitarFechamentoConta() {
+    try {
+      if (!mesaConsultaCliente) return;
+      const numFmt = String(mesaConsultaCliente).padStart(2, '0');
+      socket.emit('solicitar_fechamento', `Mesa ${numFmt}`);
+      setContaSolicitadaSucesso(true);
+      setTimeout(() => setContaSolicitadaSucesso(false), 5000);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função solicitarFechamentoConta:", erro);
+    }
+  }
+
+  function encerarComanda(localChave, infoComanda) {
+    try {
+      const totalPago = Object.values(pagamentosMesa).reduce((a, b) => a + Number(b || 0), 0);
+      if (totalPago < infoComanda.totalComanda) {
+        setMensagem(`⚠️ O valor pago é menor que o total!`);
         setTimeout(() => setMensagem(''), 3000);
         return;
       }
-      const numFmt = String(numMesa).padStart(2, '0');
-      identificadorFinal = `Mesa ${numFmt}`;
-      numeroMesaFinal = numFmt;
-    } else {
-      identificadorFinal = `AVULSO: ${identificacaoAvulsa || 'Balcão'}`;
-      numeroMesaFinal = 'Avulso';
+
+      const agora = new Date();
+      const registroVenda = {
+        id: Date.now(),
+        dataIso: agora.toISOString().split('T')[0],
+        local: localChave,
+        cliente: infoComanda.cliente,
+        total: infoComanda.totalComanda,
+        pagamentos: pagamentosMesa,
+        horarioFechamento: agora.toLocaleString('pt-BR'),
+        responsavelFechamento: usuarioLogado?.nome || 'Gestor'
+      };
+
+      socket.emit('fechar_comanda', { localChave, registroVenda });
+      setMesaFechamento(null);
+      setPagamentosMesa({});
+      setMensagem(`🏁 Comanda ${localChave} fechada com sucesso!`);
+      setTimeout(() => setMensagem(''), 3000);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função encerarComanda:", erro);
     }
+  }
 
-    if (celularCliente && nomeCliente) {
-      socket.emit('salvar_cliente', { celular: celularCliente, nome: nomeCliente });
+  function selecionarMesaParaLancar(numMesaStr) {
+    try {
+      setMesaAlvoGarcom(numMesaStr);
+      setNumMesa(numMesaStr);
+      setAbaAtiva('cardapio');
+    } catch (erro) {
+      console.error("❌ [ERRO] Função selecionarMesaParaLancar:", erro);
     }
+  }
 
-    const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
-
-    const pedidoObjeto = {
-      id: Date.now(),
-      local: identificadorFinal,
-      tipo: mesaAlvoGarcom ? 'mesa' : tipoAtendimento,
-      mesa: numeroMesaFinal,
-      cliente: nomeClienteFinal,
-      celular: celularCliente || 'Não informado',
-      atendente: usuarioLogado ? `${usuarioLogado.nome} (${usuarioLogado.tipo})` : 'Cliente (Autoatendimento)',
-      itens: carrinho,
-      total: totalCalculado,
-      status: 'Pendente',
-      entregue: false,
-      cancelado: false,
-      horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setPedidoEnviadoSucesso(pedidoObjeto);
-    socket.emit('novo_pedido', pedidoObjeto);
-    dispararImpressaoDireta(pedidoObjeto);
-
-    setCarrinho([]);
-    setMesaAlvoGarcom(null);
-  };
+  // Cálculos Auxiliares
+  const categoriasUnicas = ['Todas', ...new Set(cardapio.map((item) => item.categoria))];
+  const cardapioFiltrado = categoriaSel === 'Todas' ? cardapio : cardapio.filter((i) => i.categoria === categoriaSel);
+  const totalCarrinho = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
 
   const comandasAgrupadas = pedidos.reduce((acc, pedido) => {
     if (pedido.cancelado) return acc;
@@ -357,80 +525,6 @@ export default function App() {
     return acc;
   }, {});
 
-  const consultarContaPorMesa = (e) => {
-    e.preventDefault();
-    if (!mesaConsultaCliente) return;
-    const numFmt = String(mesaConsultaCliente).padStart(2, '0');
-    const chaveBuscada = `Mesa ${numFmt}`;
-    const comandaEncontrada = comandasAgrupadas[chaveBuscada];
-
-    if (!comandaEncontrada) {
-      setContaConsultada({ status: 'nao_encontrada', local: chaveBuscada });
-      return;
-    }
-    setContaConsultada({ status: 'encontrado', local: chaveBuscada, pedidos: comandaEncontrada.pedidos, total: comandaEncontrada.totalComanda });
-  };
-
-  const solicitarFechamentoConta = () => {
-    if (!mesaConsultaCliente) return;
-    const numFmt = String(mesaConsultaCliente).padStart(2, '0');
-    socket.emit('solicitar_fechamento', `Mesa ${numFmt}`);
-    setContaSolicitadaSucesso(true);
-    setTimeout(() => setContaSolicitadaSucesso(false), 5000);
-  };
-
-  const encerarComanda = (localChave, infoComanda) => {
-    const totalPago = Object.values(pagamentosMesa).reduce((a, b) => a + Number(b || 0), 0);
-    if (totalPago < infoComanda.totalComanda) {
-      setMensagem(`⚠️ O valor pago é menor que o total!`);
-      setTimeout(() => setMensagem(''), 3000);
-      return;
-    }
-
-    const agora = new Date();
-    const registroVenda = {
-      id: Date.now(),
-      dataIso: agora.toISOString().split('T')[0],
-      local: localChave,
-      cliente: infoComanda.cliente,
-      total: infoComanda.totalComanda,
-      pagamentos: pagamentosMesa,
-      horarioFechamento: agora.toLocaleString('pt-BR'),
-      responsavelFechamento: usuarioLogado?.nome || 'Gestor'
-    };
-
-    socket.emit('fechar_comanda', { localChave, registroVenda });
-    setMesaFechamento(null);
-    setPagamentosMesa({});
-    setMensagem(`🏁 Comanda ${localChave} fechada com sucesso!`);
-    setTimeout(() => setMensagem(''), 3000);
-  };
-
-  const selecionarMesaParaLancar = (numMesaStr) => {
-    setMesaAlvoGarcom(numMesaStr);
-    setNumMesa(numMesaStr);
-    setAbaAtiva('cardapio');
-  };
-
-  const vendasFiltradasPorPeriodo = historicoVendas.filter((v) => {
-    if (!v.dataIso) return true;
-    return v.dataIso >= dataInicioFiltro && v.dataIso <= dataFimFiltro;
-  });
-
-  const faturamentoPeriodo = vendasFiltradasPorPeriodo.reduce((acc, v) => acc + v.total, 0);
-
-  const definirOntem = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const ontemStr = d.toISOString().split('T')[0];
-    setDataInicioFiltro(ontemStr); setDataFimFiltro(ontemStr);
-  };
-
-  const definirHoje = () => { setDataInicioFiltro(hojeStr); setDataFimFiltro(hojeStr); };
-
-  const totalCarrinho = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
-  const cardapioFiltrado = categoriaSel === 'Todas' ? cardapio : cardapio.filter((i) => i.categoria === categoriaSel);
-
   const listaMesas = Array.from({ length: TOTAL_MESAS_SALAO }, (_, i) => {
     const num = String(i + 1).padStart(2, '0');
     const chave = `Mesa ${num}`;
@@ -438,6 +532,17 @@ export default function App() {
     return { numero: num, chave, ocupada, dados: comandasAgrupadas[chave] || null };
   });
 
+  const vendasFiltradasPorPeriodo = historicoVendas.filter((v) => {
+    if (!v.dataIso) return true;
+    return v.dataIso >= dataInicioFiltro && v.dataIso <= dataFimFiltro;
+  });
+  const faturamentoPeriodo = vendasFiltradasPorPeriodo.reduce((acc, v) => acc + v.total, 0);
+
+  /**
+   * ============================================================================
+   * PACOTE 10: RENDERIZAÇÃO DA INTERFACE (JSX)
+   * ============================================================================
+   */
   return (
     <div className="min-h-screen bg-slate-950 text-white p-3 md:p-6 pb-24 font-sans flex flex-col justify-between">
       <div>
@@ -446,8 +551,11 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-black text-cyan-400 tracking-tight">Era do Gelo 🧊⚡</h1>
-                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase border ${bancoConectado ? 'bg-emerald-500/2oba text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'}`}>
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase border ${bancoConectado ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'}`}>
                   {bancoConectado ? '🗄️ DB Online' : '⚠️ DB Offline'}
+                </span>
+                <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                  {usuarioLogado ? `• ${usuarioLogado.tipo}: ${usuarioLogado.nome}` : '• AUTOATENDIMENTO CLIENTE'}
                 </span>
               </div>
             </div>
@@ -486,7 +594,7 @@ export default function App() {
               {usuarioLogado ? (
                 <button onClick={handleLogout} className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-rose-500 hover:text-white transition-all">Sair</button>
               ) : (
-                <button onClick={() => setModalLoginAberto(true)} className="bg-slate-800 border border-slate-700 text-cyan-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all">🔐 Login</button>
+                <button onClick={() => setModalLoginAberto(true)} className="bg-slate-800 border border-slate-700 text-cyan-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all">🔐 Login Funcionário</button>
               )}
             </div>
           </div>
@@ -522,7 +630,7 @@ export default function App() {
 
                 <div className="grid grid-cols-1 gap-3">
                   {cardapioFiltrado.map((item) => (
-                    <div key={item.id} onClick={() => abrirDetalhesItem(item)} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center cursor-pointer">
+                    <div key={item.id} onClick={() => abrirDetalhesItem(item)} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center cursor-pointer hover:border-cyan-500/40 transition-all">
                       <div>
                         <h3 className="font-bold text-sm">{item.nome} <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-cyan-400">{item.impressora}</span></h3>
                         <p className="text-xs text-slate-400">{item.descricao}</p>
@@ -539,7 +647,7 @@ export default function App() {
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {carrinho.map((item, idx) => (
                     <div key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs flex justify-between">
-                      <span>{item.quantidade}x {item.nome}</span>
+                      <span>{item.quantidade}x {item.nome} {item.ponto ? `(${item.ponto})` : ''}</span>
                       <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
                     </div>
                   ))}
@@ -577,9 +685,7 @@ export default function App() {
               {pedidos.filter(p => p.status === 'Pronto' && !p.entregue && !p.cancelado).map((p) => (
                 <div key={p.id} className="bg-slate-900 p-4 rounded-xl border border-amber-500 space-y-3">
                   <span className="bg-emerald-500 text-slate-950 font-black px-2 py-1 rounded text-xs">{p.local}</span>
-                  <button onClick={() => {
-                    socket.emit('atualizar_status_pedido', { idPedido: p.id, status: 'Pronto', entregue: true, garcomEntrega: usuarioLogado.nome, horarioEntrega: new Date().toLocaleTimeString() });
-                  }} className="w-full bg-emerald-500 text-slate-950 font-black py-2 rounded text-xs">Marcar como Entregue</button>
+                  <button onClick={() => atualizarStatusPedido(p.id, 'Pronto')} className="w-full bg-emerald-500 text-slate-950 font-black py-2 rounded text-xs">Marcar como Entregue</button>
                 </div>
               ))}
             </div>
@@ -609,7 +715,6 @@ export default function App() {
             <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex gap-2">
               <input type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="bg-slate-950 p-2 rounded text-xs" />
               <input type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="bg-slate-950 p-2 rounded text-xs" />
-              <button onClick={definirOntem} className="bg-slate-800 px-3 py-1 rounded text-xs">Ontem</button>
             </div>
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xl font-black text-emerald-400">
               Faturamento no Período: R$ {faturamentoPeriodo.toFixed(2)}
@@ -617,73 +722,78 @@ export default function App() {
           </main>
         )}
 
-        {/* CONFIGURAÇÃO DE IMPRESSORA DIRETA E PRODUTOS */}
         {abaAtiva === 'gerenciar_cardapio' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
           <main className="max-w-4xl mx-auto space-y-5">
-            {/* Configuração do Caminho da Impressora */}
-            <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
-              <h2 className="text-base font-bold text-cyan-400">🖨️ Configuração de Impressão Direta (Sem Perguntar)</h2>
-              <form onSubmit={salvarConfigImpressoras} className="space-y-3">
-                <div>
-                  <label className="text-xs text-slate-400">Caminho / Caminho de Rede da Cozinha 1:</label>
-                  <input type="text" value={configImpressoras.cozinha1} onChange={(e) => setConfigImpressoras({...configImpressoras, cozinha1: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400">Caminho / Caminho de Rede da Cozinha 2:</label>
-                  <input type="text" value={configImpressoras.cozinha2} onChange={(e) => setConfigImpressoras({...configImpressoras, cozinha2: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" />
-                </div>
-                <button type="submit" className="bg-cyan-500 text-slate-950 font-black px-4 py-2 rounded text-xs">Salvar Caminhos de Impressão</button>
-              </form>
-            </div>
-
-            {/* Cadastro de Produto com Atrelamento de Cozinha/Impressora */}
             <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
-              <h2 className="text-base font-bold text-emerald-400">⚙️ Adicionar Produto (Atrelado à Impressora)</h2>
+              <h2 className="text-base font-bold text-emerald-400">⚙️ Adicionar Produto</h2>
               <form onSubmit={adicionarItemCardapio} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input type="text" placeholder="Nome do Item" value={novoNomeItem} onChange={(e) => setNovoNomeItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
-                <select value={novaCategoriaItem} onChange={(e) => setNovaCategoriaItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white">
+                <input type="text" placeholder="Nome" value={novoNomeItem} onChange={(e) => setNovoNomeItem(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs" />
+                <select value={novaCategoriaItem} onChange={(e) => setNovaCategoriaItem(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs">
                   <option value="Espetinhos">Espetinhos</option>
                   <option value="Bebidas">Bebidas</option>
                   <option value="Porções">Porções</option>
                 </select>
-                <input type="number" step="0.01" placeholder="Preço (R$)" value={novoPrecoItem} onChange={(e) => setNovoPrecoItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
-                
-                {/* Seleção de qual cozinha imprime (Padrão Cozinha 1) */}
-                <select value={novaImpressoraItem} onChange={(e) => setNovaImpressoraItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-cyan-400 font-bold">
-                  <option value="Cozinha 1">Imprimir na Cozinha 1 (Padrão)</option>
-                  <option value="Cozinha 2">Imprimir na Cozinha 2</option>
+                <input type="number" step="0.01" placeholder="Preço" value={novoPrecoItem} onChange={(e) => setNovoPrecoItem(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs" />
+                <select value={novaImpressoraItem} onChange={(e) => setNovaImpressoraItem(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs font-bold text-cyan-400">
+                  <option value="Cozinha 1">Cozinha 1 (Padrão)</option>
+                  <option value="Cozinha 2">Cozinha 2</option>
                 </select>
-
-                <input type="text" placeholder="Descrição" value={novaDescItem} onChange={(e) => setNovaDescItem(e.target.value)} className="sm:col-span-2 bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
-                <button type="submit" className="sm:col-span-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl text-xs">Salvar Produto</button>
+                <button type="submit" className="sm:col-span-2 bg-emerald-500 text-slate-950 font-black py-2.5 rounded-xl text-xs">Salvar Produto</button>
               </form>
             </div>
           </main>
         )}
 
-        {abaAtiva === 'gerenciar_usuarios' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
-          <main className="max-w-4xl mx-auto space-y-5">
-            <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
-              <h2 className="text-base font-bold text-indigo-400">👥 Cadastrar Usuário no Banco</h2>
-              <form onSubmit={cadastrarFuncionario} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input type="text" placeholder="Nome" value={novoNomeUser} onChange={(e) => setNovoNomeUser(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs" />
-                <input type="text" placeholder="Login" value={novoUsuario} onChange={(e) => setNovoUsuario(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs" />
-                <input type="password" placeholder="Senha" value={novoSenhaUser} onChange={(e) => setNovoSenhaUser(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs" />
-                <select value={novoTipoUser} onChange={(e) => setNovoTipoUser(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs">
-                  <option value="garcom">Garçom</option>
-                  <option value="gestor">Gestor</option>
-                  <option value="adm">Administrador</option>
-                </select>
-                <button type="submit" className="sm:col-span-2 bg-indigo-500 text-slate-950 font-black py-2.5 rounded-xl text-xs">Salvar Usuário</button>
-              </form>
+        {/* MODAL DE OPÇÕES DO ITEM */}
+        {itemSelecionado && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <h3 className="font-bold text-sm text-cyan-400">{itemSelecionado.nome}</h3>
+                <button onClick={() => setItemSelecionado(null)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
+              </div>
+
+              {itemSelecionado.categoria === 'Espetinhos' && (
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-slate-300">Ponto da Carne:</span>
+                  {['Mal passado', 'Ao ponto', 'Bem passado'].map((p) => (
+                    <label key={p} onClick={() => setPontoCarne(p)} className={`flex justify-between p-2 rounded-lg border text-xs cursor-pointer ${pontoCarne === p ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-slate-800 text-slate-400'}`}>
+                      <span>{p}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-slate-300">Escolha os Molhos:</span>
+                {OPCOES_MOLHOS.map((molho) => {
+                  const marcado = molhosSelecionados.includes(molho);
+                  return (
+                    <label key={molho} onClick={() => alternarMolho(molho)} className={`flex justify-between p-2 rounded-lg border text-xs cursor-pointer ${marcado ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-slate-800 text-slate-400'}`}>
+                      <span>{molho}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1">
+                  <button onClick={() => setQuantidadeModal((q) => Math.max(1, q - 1))} className="w-8 h-8 font-bold">-</button>
+                  <span className="w-8 text-center text-xs font-bold text-cyan-400">{quantidadeModal}</span>
+                  <button onClick={() => setQuantidadeModal((q) => q + 1)} className="w-8 h-8 font-bold">+</button>
+                </div>
+                <button onClick={confirmarAdicaoModal} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs">
+                  Adicionar • R$ {(itemSelecionado.preco * quantidadeModal).toFixed(2)}
+                </button>
+              </div>
             </div>
-          </main>
+          </div>
         )}
 
         {modalLoginAberto && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md space-y-5">
-              <h3 className="font-bold text-base text-cyan-400">Login (Puxado do Banco)</h3>
+              <h3 className="font-bold text-base text-cyan-400">Login Funcionário</h3>
               <form onSubmit={handleLogin} className="space-y-4">
                 <input type="text" placeholder="Usuário" value={inputUsuario} onChange={(e) => setInputUsuario(e.target.value)} className="w-full bg-slate-950 p-2.5 rounded-xl text-xs" />
                 <input type="password" placeholder="Senha" value={inputSenha} onChange={(e) => setInputSenha(e.target.value)} className="w-full bg-slate-950 p-2.5 rounded-xl text-xs" />

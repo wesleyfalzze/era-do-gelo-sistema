@@ -1,3 +1,8 @@
+/**
+ * ============================================================================
+ * PACOTE 1: IMPORTAÇÕES E CONFIGURAÇÕES DE AMBIENTE
+ * ============================================================================
+ */
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -11,32 +16,42 @@ app.use(express.json());
 const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = "eradogelo";
 
-let db;
+let db = null;
 let dbConectado = false;
 
-// Teste de conexão automático na inicialização
-if (MONGO_URI) {
-  MongoClient.connect(MONGO_URI)
-    .then(client => {
-      db = client.db(DB_NAME);
-      dbConectado = true;
-      console.log("🗄️ [SUCESSO] Conectado ao MongoDB Atlas com sucesso!");
-    })
-    .catch(err => {
-      dbConectado = false;
-      console.error("❌ [ERRO] Falha ao conectar ao MongoDB:", err);
-    });
-} else {
-  console.warn("⚠️ [AVISO] Variável MONGO_URI não encontrada!");
+/**
+ * ============================================================================
+ * PACOTE 2: GERENCIAMENTO E TESTE DE CONEXÃO COM O BANCO DE DADOS
+ * ============================================================================
+ */
+async function conectarBancoDados() {
+  try {
+    if (!MONGO_URI) {
+      throw new Error("Variável MONGO_URI não está definida no ambiente.");
+    }
+    const client = await MongoClient.connect(MONGO_URI);
+    db = client.db(DB_NAME);
+    dbConectado = true;
+    console.log("🗄️ [SUCESSO] Conectado ao MongoDB Atlas com sucesso!");
+  } catch (erro) {
+    dbConectado = false;
+    console.error("❌ [ERRO] Falha na função conectarBancoDados:", erro.message);
+  }
 }
 
-// Endpoint para testar o status da conexão com o banco
+conectarBancoDados();
+
+// Endpoint de verificação de status do banco de dados
 app.get('/api/status', (req, res) => {
-  res.json({ conectado: dbConectado, timestamp: new Date() });
+  try {
+    res.json({ conectado: dbConectado, timestamp: new Date() });
+  } catch (erro) {
+    res.status(500).json({ conectado: false, erro: erro.message });
+  }
 });
 
 app.get('/', (req, res) => {
-  res.send('🧊 Era do Gelo - Servidor Completo com Banco de Dados Rodando! 🚀');
+  res.send('🧊 Era do Gelo - Servidor Modular Rodando com Sucesso! 🚀');
 });
 
 const server = http.createServer(app);
@@ -44,11 +59,18 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-io.on('connection', async (socket) => {
+/**
+ * ============================================================================
+ * PACOTE 3: GERENCIAMENTO DE ROTAS E SOCKET.IO (EVENTOS EM TEMPO REAL)
+ * ============================================================================
+ */
+io.on('connection', (socket) => {
   console.log(`🔌 Novo cliente conectado: ${socket.id}`);
 
-  try {
-    if (db && dbConectado) {
+  // Função: Sincronizar dados iniciais com o cliente conectado
+  async function enviarDadosIniciais() {
+    try {
+      if (!db || !dbConectado) return;
       const pedidosSalvos = await db.collection('pedidos').find({}).toArray();
       const cardapioSalvo = await db.collection('cardapio').find({}).toArray();
       const usuariosSalvos = await db.collection('usuarios').find({}).toArray();
@@ -62,12 +84,14 @@ io.on('connection', async (socket) => {
       socket.emit('atualizar_vendas', vendasSalvas);
       socket.emit('atualizar_clientes', clientesSalvos);
       if (configImpressora) socket.emit('atualizar_config_impressora', configImpressora);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função enviarDadosIniciais:", erro.message);
     }
-  } catch (e) {
-    console.error("Erro ao buscar dados iniciais:", e);
   }
 
-  // Sincronizar Cardápio (com Impressora/Cozinha atrelada)
+  enviarDadosIniciais();
+
+  // Função: Salvar Cardápio
   socket.on('salvar_cardapio', async (novoCardapio) => {
     try {
       if (db && dbConectado) {
@@ -75,10 +99,12 @@ io.on('connection', async (socket) => {
         if (novoCardapio.length > 0) await db.collection('cardapio').insertMany(novoCardapio);
       }
       io.emit('atualizar_cardapio', novoCardapio);
-    } catch (e) { console.error(e); }
+    } catch (erro) {
+      console.error("❌ [ERRO] Função salvar_cardapio:", erro.message);
+    }
   });
 
-  // Sincronizar Usuários do Banco
+  // Função: Salvar Usuários do Banco
   socket.on('salvar_usuarios', async (novaLista) => {
     try {
       if (db && dbConectado) {
@@ -86,10 +112,12 @@ io.on('connection', async (socket) => {
         if (novaLista.length > 0) await db.collection('usuarios').insertMany(novaLista);
       }
       io.emit('atualizar_usuarios', novaLista);
-    } catch (e) { console.error(e); }
+    } catch (erro) {
+      console.error("❌ [ERRO] Função salvar_usuarios:", erro.message);
+    }
   });
 
-  // Salvar Configuração de Impressora Direta
+  // Função: Salvar Configuração de Impressoras
   socket.on('salvar_config_impressora', async (config) => {
     try {
       if (db && dbConectado) {
@@ -100,11 +128,12 @@ io.on('connection', async (socket) => {
         );
       }
       io.emit('atualizar_config_impressora', config);
-      console.log(`🖨️ Configuração de impressora salva: ${config.caminho}`);
-    } catch (e) { console.error(e); }
+    } catch (erro) {
+      console.error("❌ [ERRO] Função salvar_config_impressora:", erro.message);
+    }
   });
 
-  // Salvar Cliente (Celular ➔ Nome)
+  // Função: Salvar Cliente por Celular
   socket.on('salvar_cliente', async ({ celular, nome }) => {
     try {
       if (db && dbConectado && celular && nome) {
@@ -116,10 +145,12 @@ io.on('connection', async (socket) => {
         const clientesAtualizados = await db.collection('clientes').find({}).toArray();
         io.emit('atualizar_clientes', clientesAtualizados);
       }
-    } catch (e) { console.error(e); }
+    } catch (erro) {
+      console.error("❌ [ERRO] Função salvar_cliente:", erro.message);
+    }
   });
 
-  // Novo Pedido
+  // Função: Criar Novo Pedido
   socket.on('novo_pedido', async (pedido) => {
     try {
       if (db && dbConectado) {
@@ -131,10 +162,12 @@ io.on('connection', async (socket) => {
         const listaAtualizada = await db.collection('pedidos').find({}).toArray();
         io.emit('atualizar_lista_pedidos', listaAtualizada);
       }
-    } catch (e) { console.error(e); }
+    } catch (erro) {
+      console.error("❌ [ERRO] Função novo_pedido:", erro.message);
+    }
   });
 
-  // Atualizar Status / Entrega / Cancelamento
+  // Função: Atualizar Status do Pedido / Entrega / Cancelamento
   socket.on('atualizar_status_pedido', async (dadosAtualizados) => {
     try {
       if (db && dbConectado) {
@@ -154,10 +187,12 @@ io.on('connection', async (socket) => {
         const listaAtualizada = await db.collection('pedidos').find({}).toArray();
         io.emit('atualizar_lista_pedidos', listaAtualizada);
       }
-    } catch (e) { console.error(e); }
+    } catch (erro) {
+      console.error("❌ [ERRO] Função atualizar_status_pedido:", erro.message);
+    }
   });
 
-  // Fechar Comanda e Salvar Venda
+  // Função: Fechar Comanda e Registrar Venda
   socket.on('fechar_comanda', async ({ localChave, registroVenda }) => {
     try {
       if (db && dbConectado) {
@@ -175,7 +210,9 @@ io.on('connection', async (socket) => {
         io.emit('atualizar_lista_pedidos', listaPedidos);
         io.emit('atualizar_vendas', listaVendas);
       }
-    } catch (e) { console.error(e); }
+    } catch (erro) {
+      console.error("❌ [ERRO] Função fechar_comanda:", erro.message);
+    }
   });
 
   socket.on('disconnect', () => {
@@ -185,5 +222,5 @@ io.on('connection', async (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor modular rodando na porta ${PORT}`);
 });
