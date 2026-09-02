@@ -158,7 +158,7 @@ export default function App() {
 
   /**
    * ============================================================================
-   * PACOTE 4: FUNÇÕES DE AUTENTICAÇÃO E SESSÃO
+   * PACOTE 4: FUNÇÕES DE AUTENTICAÇÃO E SESSÃO (PUXANDO DO BANCO)
    * ============================================================================
    */
   function handleLogin(e) {
@@ -166,12 +166,17 @@ export default function App() {
       e.preventDefault();
       setErroLogin('');
 
+      if (!inputUsuario) {
+        setErroLogin('⚠️ Selecione um usuário da lista!');
+        return;
+      }
+
       const userEncontrado = listaUsuarios.find(
         (u) => u.usuario.toLowerCase() === inputUsuario.trim().toLowerCase() && u.senha === inputSenha
       );
 
       if (!userEncontrado) {
-        setErroLogin('❌ Usuário ou senha incorretos!');
+        setErroLogin('❌ Senha incorreta para este usuário!');
         return;
       }
 
@@ -182,6 +187,7 @@ export default function App() {
       setAbaAtiva(userEncontrado.tipo === 'garcom' ? 'garcom' : 'salao');
     } catch (erro) {
       console.error("❌ [ERRO] Função handleLogin:", erro);
+      setErroLogin('❌ Erro ao realizar login. Tente novamente.');
     }
   }
 
@@ -193,135 +199,9 @@ export default function App() {
     } catch (erro) {
       console.error("❌ [ERRO] Função handleLogout:", erro);
     }
-  }
-
+  }   
   /**
-   * ============================================================================
-   * PACOTE 5: FUNÇÕES DE CLIENTES E AUTO-PREENCHIMENTO
-   * ============================================================================
-   */
-  function handleCelularChange(e) {
-    try {
-      const tel = e.target.value;
-      setCelularCliente(tel);
-      const encontrado = clientesBanco.find(c => c.celular === tel);
-      if (encontrado) {
-        setNomeCliente(encontrado.nome);
-      }
-    } catch (erro) {
-      console.error("❌ [ERRO] Função handleCelularChange:", erro);
-    }
-  }
-
-  /**
-   * ============================================================================
-   * PACOTE 6: FUNÇÕES DE PEDIDOS, ITENS E MODAL DE OPÇÕES
-   * ============================================================================
-   */
-  function abrirDetalhesItem(item) {
-    try {
-      setItemSelecionado(item);
-      setQuantidadeModal(1);
-      setPontoCarne('Ao ponto');
-      setMolhosSelecionados([]);
-    } catch (erro) {
-      console.error("❌ [ERRO] Função abrirDetalhesItem:", erro);
-    }
-  }
-
-  function alternarMolho(molho) {
-    try {
-      if (molho === 'Sem Molho') {
-        setMolhosSelecionados(['Sem Molho']);
-        return;
-      }
-      setMolhosSelecionados((prev) => {
-        const filtrados = prev.filter((m) => m !== 'Sem Molho');
-        return filtrados.includes(molho) ? filtrados.filter((m) => m !== molho) : [...filtrados, molho];
-      });
-    } catch (erro) {
-      console.error("❌ [ERRO] Função alternarMolho:", erro);
-    }
-  }
-
-  function confirmarAdicaoModal() {
-    try {
-      if (!itemSelecionado) return;
-      const novoItemCarrinho = {
-        ...itemSelecionado,
-        quantidade: quantidadeModal,
-        ponto: itemSelecionado.categoria === 'Espetinhos' ? pontoCarne : null,
-        molhos: molhosSelecionados,
-        precoTotalItem: itemSelecionado.preco * quantidadeModal
-      };
-      setCarrinho((prev) => [...prev, novoItemCarrinho]);
-      setItemSelecionado(null);
-    } catch (erro) {
-      console.error("❌ [ERRO] Função confirmarAdicaoModal:", erro);
-    }
-  }
-
-  function enviarPedido() {
-    try {
-      if (carrinho.length === 0) return;
-
-      let identificadorFinal = '';
-      let numeroMesaFinal = 'Avulso';
-      let nomeClienteFinal = nomeCliente || 'Cliente';
-
-      if (mesaAlvoGarcom) {
-        const numFmt = String(mesaAlvoGarcom).padStart(2, '0');
-        identificadorFinal = `Mesa ${numFmt}`;
-        numeroMesaFinal = numFmt;
-        nomeClienteFinal = `Mesa ${numFmt} (${usuarioLogado.nome})`;
-      } else if (tipoAtendimento === 'mesa') {
-        if (!numMesa) {
-          setMensagem('⚠️ Informe o número da mesa!');
-          setTimeout(() => setMensagem(''), 3000);
-          return;
-        }
-        const numFmt = String(numMesa).padStart(2, '0');
-        identificadorFinal = `Mesa ${numFmt}`;
-        numeroMesaFinal = numFmt;
-      } else {
-        identificadorFinal = `AVULSO: ${identificacaoAvulsa || 'Balcão'}`;
-        numeroMesaFinal = 'Avulso';
-      }
-
-      if (celularCliente && nomeCliente) {
-        socket.emit('salvar_cliente', { celular: celularCliente, nome: nomeCliente });
-      }
-
-      const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
-      const origemAtendimento = usuarioLogado ? `${usuarioLogado.tipo}: ${usuarioLogado.nome}` : 'Cliente (Autoatendimento)';
-
-      const pedidoObjeto = {
-        id: Date.now(),
-        local: identificadorFinal,
-        tipo: mesaAlvoGarcom ? 'mesa' : tipoAtendimento,
-        mesa: numeroMesaFinal,
-        cliente: nomeClienteFinal,
-        celular: celularCliente || 'Não informado',
-        atendente: origemAtendimento,
-        itens: carrinho,
-        total: totalCalculado,
-        status: 'Pendente',
-        entregue: false,
-        cancelado: false,
-        horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      };
-
-      setPedidoEnviadoSucesso(pedidoObjeto);
-      socket.emit('novo_pedido', pedidoObjeto);
-      setCarrinho([]);
-      setMesaAlvoGarcom(null);
-    } catch (erro) {
-      console.error("❌ [ERRO] Função enviarPedido:", erro);
-    }
-  }
-
-  /**
-   * ============================================================================
+  * ============================================================================
    * PACOTE 7: FUNÇÕES DE GESTÃO DE COZINHA E GARÇOM
    * ============================================================================
    */
@@ -543,271 +423,48 @@ export default function App() {
    * PACOTE 10: RENDERIZAÇÃO DA INTERFACE (JSX)
    * ============================================================================
    */
-  return (
-    <div className="min-h-screen bg-slate-950 text-white p-3 md:p-6 pb-24 font-sans flex flex-col justify-between">
-      <div>
-        <header className="max-w-4xl mx-auto bg-slate-900 p-4 rounded-2xl border border-slate-800 mb-5 shadow-xl">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-cyan-400 tracking-tight">Era do Gelo 🧊⚡</h1>
-                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase border ${bancoConectado ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'}`}>
-                  {bancoConectado ? '🗄️ DB Online' : '⚠️ DB Offline'}
-                </span>
-                <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                  {usuarioLogado ? `• ${usuarioLogado.tipo}: ${usuarioLogado.nome}` : '• AUTOATENDIMENTO CLIENTE'}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
-              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 flex-wrap gap-1">
-                <button onClick={() => setAbaAtiva('cardapio')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cardapio' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>
-                  📋 Cardápio
-                </button>
-
-                {usuarioLogado && (
-                  <>
-                    <button onClick={() => setAbaAtiva('salao')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'salao' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>
-                      🪑 Salão
-                    </button>
-                    <button onClick={() => setAbaAtiva('garcom')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'garcom' ? 'bg-emerald-500 text-slate-950' : 'text-emerald-400'}`}>
-                      🏃‍♂️ Garçom
-                    </button>
-                    <button onClick={() => setAbaAtiva('comandas')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'comandas' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>
-                      💳 Comandas
-                    </button>
-                    <button onClick={() => setAbaAtiva('cozinha')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cozinha' ? 'bg-rose-500 text-slate-950' : 'text-rose-400'}`}>
-                      🔥 Cozinha
-                    </button>
-                    {(usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
-                      <>
-                        <button onClick={() => setAbaAtiva('relatorios')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'relatorios' ? 'bg-amber-500 text-slate-950' : 'text-amber-400'}`}>📊 Relatórios</button>
-                        <button onClick={() => setAbaAtiva('gerenciar_cardapio')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'gerenciar_cardapio' ? 'bg-emerald-500 text-slate-950' : 'text-emerald-400'}`}>⚙️ Cardápio</button>
-                        <button onClick={() => setAbaAtiva('gerenciar_usuarios')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'gerenciar_usuarios' ? 'bg-indigo-500 text-slate-950' : 'text-indigo-400'}`}>👥 Usuários</button>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {usuarioLogado ? (
-                <button onClick={handleLogout} className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-rose-500 hover:text-white transition-all">Sair</button>
-              ) : (
-                <button onClick={() => setModalLoginAberto(true)} className="bg-slate-800 border border-slate-700 text-cyan-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all">🔐 Login Funcionário</button>
-              )}
-            </div>
-          </div>
-        </header>
-
-        {mensagem && (
-          <div className="max-w-4xl mx-auto mb-4 p-3 bg-cyan-500/20 border border-cyan-500 text-cyan-300 rounded-xl text-xs font-bold text-center">
-            {mensagem}
-          </div>
-        )}
-
-        {abaAtiva === 'cardapio' && (
-          <main className="max-w-4xl mx-auto space-y-6">
-            {!usuarioLogado && (
-              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl space-y-3">
-                <h2 className="text-sm font-bold text-cyan-400">🔍 Consultar Conta da Mesa</h2>
-                <form onSubmit={consultarContaPorMesa} className="flex gap-2">
-                  <input type="number" placeholder="Número da Mesa" value={mesaConsultaCliente} onChange={(e) => setMesaConsultaCliente(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
-                  <button type="submit" className="bg-cyan-500 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs">Consultar</button>
-                </form>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <section className="md:col-span-2 space-y-4">
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {categoriasUnicas.map((cat) => (
-                    <button key={cat} onClick={() => setCategoriaSel(cat)} className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border ${categoriaSel === cat ? 'bg-cyan-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                  {cardapioFiltrado.map((item) => (
-                    <div key={item.id} onClick={() => abrirDetalhesItem(item)} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center cursor-pointer hover:border-cyan-500/40 transition-all">
-                      <div>
-                        <h3 className="font-bold text-sm">{item.nome} <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-cyan-400">{item.impressora}</span></h3>
-                        <p className="text-xs text-slate-400">{item.descricao}</p>
-                        <p className="text-cyan-400 font-extrabold text-sm mt-1">R$ {item.preco.toFixed(2)}</p>
-                      </div>
-                      <button className="bg-cyan-500/10 text-cyan-400 px-3 py-2 rounded-lg text-xs">+ Opções</button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="bg-slate-900 p-4 rounded-xl border border-slate-800 h-fit sticky top-4 space-y-4">
-                <h2 className="text-base font-bold pb-2 border-b border-slate-800">Sua Sacola ({carrinho.length})</h2>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {carrinho.map((item, idx) => (
-                    <div key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs flex justify-between">
-                      <span>{item.quantidade}x {item.nome} {item.ponto ? `(${item.ponto})` : ''}</span>
-                      <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-slate-800">
-                  <input type="tel" placeholder="Celular (Preenche nome auto)" value={celularCliente} onChange={handleCelularChange} className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs" />
-                  <input type="text" placeholder="Seu Nome" value={nomeCliente} onChange={(e) => setNomeCliente(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs" />
-                  <button onClick={enviarPedido} disabled={carrinho.length === 0} className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold py-3 rounded-xl text-xs">Enviar Pedido</button>
-                </div>
-              </section>
-            </div>
-          </main>
-        )}
-
-        {abaAtiva === 'salao' && usuarioLogado && (
-          <main className="max-w-4xl mx-auto space-y-4">
-            <h2 className="text-base font-bold">Mapa do Salão</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-              {listaMesas.map((m) => (
-                <div key={m.numero} className={`p-4 rounded-2xl border flex flex-col justify-between h-40 ${m.ocupada ? 'bg-rose-950/40 border-rose-500' : 'bg-slate-900 border-slate-800'}`}>
-                  <span className="text-3xl font-black">{m.numero}</span>
-                  {m.ocupada && <span className="text-xs text-rose-400 font-bold">R$ {m.dados.totalComanda.toFixed(2)}</span>}
-                  <button onClick={() => selecionarMesaParaLancar(m.numero)} className="bg-cyan-500/20 text-cyan-400 py-1 rounded text-xs font-bold">+ Lançar</button>
-                </div>
-              ))}
-            </div>
-          </main>
-        )}
-
-        {abaAtiva === 'garcom' && usuarioLogado && (
-          <main className="max-w-4xl mx-auto space-y-4">
-            <h2 className="text-lg font-black text-emerald-400">🏃‍♂️ Painel do Garçom</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {pedidos.filter(p => p.status === 'Pronto' && !p.entregue && !p.cancelado).map((p) => (
-                <div key={p.id} className="bg-slate-900 p-4 rounded-xl border border-amber-500 space-y-3">
-                  <span className="bg-emerald-500 text-slate-950 font-black px-2 py-1 rounded text-xs">{p.local}</span>
-                  <button onClick={() => atualizarStatusPedido(p.id, 'Pronto')} className="w-full bg-emerald-500 text-slate-950 font-black py-2 rounded text-xs">Marcar como Entregue</button>
-                </div>
-              ))}
-            </div>
-          </main>
-        )}
-
-        {abaAtiva === 'comandas' && usuarioLogado && (
-          <main className="max-w-4xl mx-auto space-y-4">
-            <h2 className="text-lg font-bold">Comandas Abertas</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(comandasAgrupadas).map(([local, info]) => (
-                <div key={local} className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
-                  <div>
-                    <span className="font-black text-cyan-400">{local}</span> - <span className="text-xs">{info.cliente}</span>
-                    <p className="text-emerald-400 font-bold mt-1">R$ {info.totalComanda.toFixed(2)}</p>
-                  </div>
-                  <button onClick={() => setMesaFechamento(info)} className="bg-emerald-500 text-slate-950 px-3 py-1 rounded text-xs font-black">Fechar Conta</button>
-                </div>
-              ))}
-            </div>
-          </main>
-        )}
-
-        {abaAtiva === 'relatorios' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
-          <main className="max-w-4xl mx-auto space-y-4">
-            <h2 className="text-lg font-bold text-amber-400">📊 Relatórios de Vendas</h2>
-            <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex gap-2">
-              <input type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="bg-slate-950 p-2 rounded text-xs" />
-              <input type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="bg-slate-950 p-2 rounded text-xs" />
-            </div>
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xl font-black text-emerald-400">
-              Faturamento no Período: R$ {faturamentoPeriodo.toFixed(2)}
-            </div>
-          </main>
-        )}
-
-        {abaAtiva === 'gerenciar_cardapio' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
-          <main className="max-w-4xl mx-auto space-y-5">
-            <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
-              <h2 className="text-base font-bold text-emerald-400">⚙️ Adicionar Produto</h2>
-              <form onSubmit={adicionarItemCardapio} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input type="text" placeholder="Nome" value={novoNomeItem} onChange={(e) => setNovoNomeItem(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs" />
-                <select value={novaCategoriaItem} onChange={(e) => setNovaCategoriaItem(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs">
-                  <option value="Espetinhos">Espetinhos</option>
-                  <option value="Bebidas">Bebidas</option>
-                  <option value="Porções">Porções</option>
-                </select>
-                <input type="number" step="0.01" placeholder="Preço" value={novoPrecoItem} onChange={(e) => setNovoPrecoItem(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs" />
-                <select value={novaImpressoraItem} onChange={(e) => setNovaImpressoraItem(e.target.value)} className="bg-slate-950 p-2.5 rounded-xl text-xs font-bold text-cyan-400">
-                  <option value="Cozinha 1">Cozinha 1 (Padrão)</option>
-                  <option value="Cozinha 2">Cozinha 2</option>
-                </select>
-                <button type="submit" className="sm:col-span-2 bg-emerald-500 text-slate-950 font-black py-2.5 rounded-xl text-xs">Salvar Produto</button>
-              </form>
-            </div>
-          </main>
-        )}
-
-        {/* MODAL DE OPÇÕES DO ITEM */}
-        {itemSelecionado && (
+  {modalLoginAberto && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 space-y-4 shadow-2xl">
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md space-y-5 shadow-2xl">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <h3 className="font-bold text-sm text-cyan-400">{itemSelecionado.nome}</h3>
-                <button onClick={() => setItemSelecionado(null)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
+                <h3 className="font-bold text-base text-cyan-400">Login Funcionário (Banco de Dados)</h3>
+                <button onClick={() => setModalLoginAberto(false)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
               </div>
 
-              {itemSelecionado.categoria === 'Espetinhos' && (
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-slate-300">Ponto da Carne:</span>
-                  {['Mal passado', 'Ao ponto', 'Bem passado'].map((p) => (
-                    <label key={p} onClick={() => setPontoCarne(p)} className={`flex justify-between p-2 rounded-lg border text-xs cursor-pointer ${pontoCarne === p ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-slate-800 text-slate-400'}`}>
-                      <span>{p}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-300">Escolha os Molhos:</span>
-                {OPCOES_MOLHOS.map((molho) => {
-                  const marcado = molhosSelecionados.includes(molho);
-                  return (
-                    <label key={molho} onClick={() => alternarMolho(molho)} className={`flex justify-between p-2 rounded-lg border text-xs cursor-pointer ${marcado ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-slate-800 text-slate-400'}`}>
-                      <span>{molho}</span>
-                    </label>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center gap-3 pt-2">
-                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1">
-                  <button onClick={() => setQuantidadeModal((q) => Math.max(1, q - 1))} className="w-8 h-8 font-bold">-</button>
-                  <span className="w-8 text-center text-xs font-bold text-cyan-400">{quantidadeModal}</span>
-                  <button onClick={() => setQuantidadeModal((q) => q + 1)} className="w-8 h-8 font-bold">+</button>
-                </div>
-                <button onClick={confirmarAdicaoModal} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs">
-                  Adicionar • R$ {(itemSelecionado.preco * quantidadeModal).toFixed(2)}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {modalLoginAberto && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md space-y-5">
-              <h3 className="font-bold text-base text-cyan-400">Login Funcionário</h3>
               <form onSubmit={handleLogin} className="space-y-4">
-                <input type="text" placeholder="Usuário" value={inputUsuario} onChange={(e) => setInputUsuario(e.target.value)} className="w-full bg-slate-950 p-2.5 rounded-xl text-xs" />
-                <input type="password" placeholder="Senha" value={inputSenha} onChange={(e) => setInputSenha(e.target.value)} className="w-full bg-slate-950 p-2.5 rounded-xl text-xs" />
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Selecione o Usuário:</label>
+                  <select 
+                    value={inputUsuario} 
+                    onChange={(e) => setInputUsuario(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
+                  >
+                    <option value="">-- Escolha um Colaborador Cadastrado --</option>
+                    {listaUsuarios.map((u) => (
+                      <option key={u.usuario} value={u.usuario}>
+                        {u.nome} ({u.usuario}) — [{u.tipo.toUpperCase()}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Digite a Senha:</label>
+                  <input 
+                    type="password" 
+                    placeholder="Digite sua senha" 
+                    value={inputSenha} 
+                    onChange={(e) => setInputSenha(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" 
+                  />
+                </div>
+
                 {erroLogin && <p className="text-xs font-bold text-rose-400 text-center">{erroLogin}</p>}
-                <button type="submit" className="w-full bg-cyan-500 text-slate-950 font-black py-3 rounded-xl text-xs">Entrar</button>
+
+                <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg transition-all">
+                  Entrar no Sistema
+                </button>
               </form>
             </div>
           </div>
         )}
-      </div>
-
-      <footer className="w-full text-center mt-10 pt-4 border-t border-slate-900/80">
-        <span className="text-[10px] text-slate-600 font-mono tracking-wider">Era do Gelo Sistema • {VERSAO_SISTEMA}</span>
-      </footer>
-    </div>
-  );
-}
