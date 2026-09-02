@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
-const VERSAO_SISTEMA = "v2.8.0 • Atualizado em 02/09/2026 19:40";
+const VERSAO_SISTEMA = "v2.9.0 • Atualizado em 02/09/2026 21:00";
 const TOTAL_MESAS_SALAO = 15;
 
 const OPCOES_MOLHOS = [
@@ -63,6 +63,11 @@ export default function App() {
   const [historicoVendas, setHistoricoVendas] = useState([]);
   const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
 
+  // Filtros de Relatório por Período
+  const hojeStr = new Date().toISOString().split('T')[0];
+  const [dataInicioFiltro, setDataInicioFiltro] = useState(hojeStr);
+  const [dataFimFiltro, setDataFimFiltro] = useState(hojeStr);
+
   const [mesaConsultaCliente, setMesaConsultaCliente] = useState('');
   const [contaConsultada, setContaConsultada] = useState(null);
   const [contaSolicitadaSucesso, setContaSolicitadaSucesso] = useState(false);
@@ -92,7 +97,6 @@ export default function App() {
   const [mesaFechamento, setMesaFechamento] = useState(null);
   const [tipoDivisao, setTipoDivisao] = useState('total');
   const [qtdPessoas, setQtdPessoas] = useState(1);
-  const [itensSelecionadosFechamento, setItensSelecionadosFechamento] = useState({});
   const [pagamentosMesa, setPagamentosMesa] = useState({});
 
   useEffect(() => {
@@ -121,6 +125,7 @@ export default function App() {
     });
 
     socket.on('pedido_recebido', (novoPedido) => {
+      // Dispara o alerta sonoro e visual APENAS para gestores / funcionários logados
       setNovoPedidoAlerta(novoPedido);
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -194,7 +199,7 @@ export default function App() {
     setNovoUsuario('');
     setNovoSenhaUser('');
     setNovoNomeUser('');
-    setMensagem('✅ Novo colaborador cadastrado e salvo no banco!');
+    setMensagem('✅ Novo colaborador cadastrado e salvo!');
     setTimeout(() => setMensagem(''), 3000);
   };
 
@@ -234,7 +239,7 @@ export default function App() {
     setNovoNomeItem('');
     setNovoPrecoItem('');
     setNovaDescItem('');
-    setMensagem('✅ Item adicionado e gravado no banco!');
+    setMensagem('✅ Item adicionado ao cardápio!');
     setTimeout(() => setMensagem(''), 3000);
   };
 
@@ -253,17 +258,6 @@ export default function App() {
     setQuantidadeModal(1);
     setPontoCarne('Ao ponto');
     setMolhosSelecionados([]);
-  };
-
-  const alternarMolho = (molho) => {
-    if (molho === 'Sem Molho') {
-      setMolhosSelecionados(['Sem Molho']);
-      return;
-    }
-    setMolhosSelecionados((prev) => {
-      const filtrados = prev.filter((m) => m !== 'Sem Molho');
-      return filtrados.includes(molho) ? filtrados.filter((m) => m !== molho) : [...filtrados, molho];
-    });
   };
 
   const confirmarAdicaoModal = () => {
@@ -400,21 +394,22 @@ export default function App() {
       return;
     }
 
+    const agora = new Date();
     const registroVenda = {
       id: Date.now(),
+      dataIso: agora.toISOString().split('T')[0], // yyyy-mm-dd para facilitar filtros
       local: localChave,
       cliente: infoComanda.cliente,
       total: infoComanda.totalComanda,
       pagamentos: pagamentosMesa,
-      horarioFechamento: new Date().toLocaleString('pt-BR'),
+      horarioFechamento: agora.toLocaleString('pt-BR'),
       responsavelFechamento: usuarioLogado?.nome || 'Gestor'
     };
 
     socket.emit('fechar_comanda', { localChave, registroVenda });
     setMesaFechamento(null);
     setPagamentosMesa({});
-    setItensSelecionadosFechamento({});
-    setMensagem(`🏁 Comanda ${localChave} fechada, gravada nas vendas e paga com sucesso!`);
+    setMensagem(`🏁 Comanda ${localChave} fechada e gravada com sucesso!`);
     setTimeout(() => setMensagem(''), 4000);
   };
 
@@ -422,6 +417,27 @@ export default function App() {
     setMesaAlvoGarcom(numMesaStr);
     setNumMesa(numMesaStr);
     setAbaAtiva('cardapio');
+  };
+
+  // Filtrar relatório por data inicial e final
+  const vendasFiltradasPorPeriodo = historicoVendas.filter((v) => {
+    if (!v.dataIso) return true;
+    return v.dataIso >= dataInicioFiltro && v.dataIso <= dataFimFiltro;
+  });
+
+  const faturamentoPeriodo = vendasFiltradasPorPeriodo.reduce((acc, v) => acc + v.total, 0);
+
+  const definirOntem = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const ontemStr = d.toISOString().split('T')[0];
+    setDataInicioFiltro(ontemStr);
+    setDataFimFiltro(ontemStr);
+  };
+
+  const definirHoje = () => {
+    setDataInicioFiltro(hojeStr);
+    setDataFimFiltro(hojeStr);
   };
 
   const totalCarrinho = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
@@ -434,8 +450,6 @@ export default function App() {
     return { numero: num, chave, ocupada, dados: comandasAgrupadas[chave] || null };
   });
 
-  const faturamentoTotalGeral = historicoVendas.reduce((acc, v) => acc + v.total, 0);
-
   return (
     <div className="min-h-screen bg-slate-950 text-white p-3 md:p-6 pb-24 font-sans flex flex-col justify-between">
       <div>
@@ -445,7 +459,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-black text-cyan-400 tracking-tight">Era do Gelo 🧊⚡</h1>
                 <span className="bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                  {usuarioLogado ? `• ${usuarioLogado.tipo}: ${usuarioLogado.nome}` : '• CARDÁPIO DIGITAL'}
+                  {usuarioLogado ? `• ${usuarioLogado.tipo}: ${usuarioLogado.nome}` : '• AUTOATENDIMENTO'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -527,7 +541,8 @@ export default function App() {
           </div>
         </header>
 
-        {novoPedidoAlerta && (
+        {/* ALERTA VISUAL E SONORO EXCLUSIVO PARA O GESTOR / FUNCIONÁRIO */}
+        {usuarioLogado && novoPedidoAlerta && (
           <div className="max-w-4xl mx-auto mb-4 p-4 bg-amber-500/20 border-2 border-amber-500 text-amber-300 rounded-2xl flex justify-between items-center animate-bounce shadow-2xl">
             <div>
               <span className="font-black text-sm block">🚨 NOVO PEDIDO CHEGOU! ({novoPedidoAlerta.local})</span>
@@ -761,7 +776,7 @@ export default function App() {
                         <div className="text-right">
                           <span className="text-xs font-black text-cyan-400 block">Total: R$ {info.totalComanda.toFixed(2)}</span>
                           {podeFechar && (
-                            <button onClick={() => { setMesaFechamento(info); setTipoDivisao('total'); setQtdPessoas(1); setPagamentosMesa({}); }} className="mt-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3 py-1 rounded text-[11px] font-black shadow">
+                            <button onClick={() => { setMesaFechamento(info); setPagamentosMesa({}); }} className="mt-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3 py-1 rounded text-[11px] font-black shadow">
                               📊 Fechar Conta (Gestor)
                             </button>
                           )}
@@ -775,24 +790,40 @@ export default function App() {
           </main>
         )}
 
+        {/* RELATÓRIOS POR PERÍODO (DATA INICIAL E FINAL) */}
         {abaAtiva === 'relatorios' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
           <main className="max-w-4xl mx-auto space-y-5">
-            <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
-              <h2 className="text-lg font-bold text-amber-400">📊 Relatório Financeiro Geral de Vendas</h2>
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="text-sm font-bold text-slate-300">Faturamento Total Acumulado:</span>
-                <span className="text-2xl font-black text-emerald-400">R$ {faturamentoTotalGeral.toFixed(2)}</span>
+            <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
+              <h2 className="text-lg font-bold text-amber-400">📊 Relatório Financeiro por Período</h2>
+              
+              <div className="flex flex-wrap items-center gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-300 font-bold">De:</span>
+                  <input type="date" value={dataInicioFiltro} onChange={(e) => setDataInicioFiltro(e.target.value)} className="bg-slate-900 border border-slate-800 text-cyan-400 text-xs p-2 rounded-lg" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-300 font-bold">Até:</span>
+                  <input type="date" value={dataFimFiltro} onChange={(e) => setDataFimFiltro(e.target.value)} className="bg-slate-900 border border-slate-800 text-cyan-400 text-xs p-2 rounded-lg" />
+                </div>
+                <div className="flex gap-2 ml-auto">
+                  <button onClick={definirHoje} className="bg-slate-800 hover:bg-slate-700 text-cyan-400 px-3 py-1.5 rounded-lg text-xs font-bold">Hoje</button>
+                  <button onClick={definirOntem} className="bg-slate-800 hover:bg-slate-700 text-cyan-400 px-3 py-1.5 rounded-lg text-xs font-bold">Ontem</button>
+                </div>
               </div>
-              <p className="text-xs text-slate-400">Total de vendas pagas registradas no banco: {historicoVendas.length}</p>
+
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
+                <span className="text-sm font-bold text-slate-300">Faturamento no Período:</span>
+                <span className="text-2xl font-black text-emerald-400">R$ {faturamentoPeriodo.toFixed(2)}</span>
+              </div>
             </div>
 
             <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
-              <h3 className="text-sm font-bold text-slate-100">Histórico de Comandas Pagas</h3>
+              <h3 className="text-sm font-bold text-slate-100">Histórico de Vendas do Período ({vendasFiltradasPorPeriodo.length} vendas)</h3>
               <div className="space-y-2 max-h-80 overflow-y-auto">
-                {historicoVendas.length === 0 ? (
-                  <p className="text-slate-500 text-xs">Nenhuma venda registrada ainda.</p>
+                {vendasFiltradasPorPeriodo.length === 0 ? (
+                  <p className="text-slate-500 text-xs">Nenhuma venda registrada neste período.</p>
                 ) : (
-                  historicoVendas.map((v) => (
+                  vendasFiltradasPorPeriodo.map((v) => (
                     <div key={v.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
                       <div className="flex justify-between font-bold text-cyan-400">
                         <span>{v.local} • {v.cliente}</span>
@@ -952,7 +983,7 @@ export default function App() {
               <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl font-black border border-emerald-500/40">✓</div>
               <div>
                 <h3 className="text-xl font-black text-emerald-400">Pedido Enviado com Sucesso!</h3>
-                <p className="text-xs text-slate-300 mt-1">Registrado na comanda e enviado para a cozinha!</p>
+                <p className="text-xs text-slate-300 mt-1">Transmitido para a cozinha!</p>
               </div>
               <button onClick={() => setPedidoEnviadoSucesso(null)} className="w-full bg-emerald-500 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">OK</button>
             </div>
