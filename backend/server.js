@@ -8,13 +8,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Pega a URL do MongoDB configurada nas variáveis de ambiente do Render
 const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = "eradogelo";
 
 let db;
 
-// Conexão com o Banco de Dados MongoDB Atlas
 if (MONGO_URI) {
   MongoClient.connect(MONGO_URI)
     .then(client => {
@@ -26,9 +24,8 @@ if (MONGO_URI) {
   console.warn("⚠️ ATENÇÃO: Variável MONGO_URI não encontrada nas variáveis de ambiente!");
 }
 
-// Rota raiz para o Render
 app.get('/', (req, res) => {
-  res.send('🧊 Era do Gelo - Servidor Backend com MongoDB Rodando com Sucesso! 🚀');
+  res.send('🧊 Era do Gelo - Servidor Completo com MongoDB Rodando com Sucesso! 🚀');
 });
 
 const server = http.createServer(app);
@@ -42,39 +39,64 @@ const io = new Server(server, {
 io.on('connection', async (socket) => {
   console.log(`🔌 Novo cliente conectado: ${socket.id}`);
 
-  // Envia os pedidos salvos no banco assim que o cliente conecta
+  // Envia dados iniciais salvos no banco
   try {
     if (db) {
       const pedidosSalvos = await db.collection('pedidos').find({}).toArray();
+      const cardapioSalvo = await db.collection('cardapio').find({}).toArray();
+      const usuariosSalvos = await db.collection('usuarios').find({}).toArray();
+      const vendasSalvas = await db.collection('vendas').find({}).toArray();
+
       socket.emit('atualizar_lista_pedidos', pedidosSalvos);
+      socket.emit('atualizar_cardapio', cardapioSalvo);
+      socket.emit('atualizar_usuarios', usuariosSalvos);
+      socket.emit('atualizar_vendas', vendasSalvas);
     }
   } catch (e) {
-    console.error("Erro ao buscar pedidos:", e);
+    console.error("Erro ao buscar dados iniciais:", e);
   }
 
-  // Solicitação manual de pedidos
-  socket.on('solicitar_pedidos', async () => {
+  // Sincronizar Cardápio Completo (Gravação e Atualização de Produtos)
+  socket.on('salvar_cardapio', async (novoCardapio) => {
     try {
       if (db) {
-        const pedidosSalvos = await db.collection('pedidos').find({}).toArray();
-        socket.emit('atualizar_lista_pedidos', pedidosSalvos);
+        await db.collection('cardapio').deleteMany({});
+        if (novoCardapio.length > 0) {
+          await db.collection('cardapio').insertMany(novoCardapio);
+        }
       }
+      io.emit('atualizar_cardapio', novoCardapio);
+      console.log("📋 Cardápio atualizado e gravado no MongoDB.");
     } catch (e) {
-      console.error("Erro ao solicitar pedidos:", e);
+      console.error("Erro ao salvar cardápio:", e);
     }
   });
 
-  // Salva novo pedido no banco de dados e retransmite para todos
+  // Sincronizar Usuários Cadastrados
+  socket.on('salvar_usuarios', async (novaListaUsuarios) => {
+    try {
+      if (db) {
+        await db.collection('usuarios').deleteMany({});
+        if (novaListaUsuarios.length > 0) {
+          await db.collection('usuarios').insertMany(novaListaUsuarios);
+        }
+      }
+      io.emit('atualizar_usuarios', novaListaUsuarios);
+      console.log("👥 Usuários atualizados e gravados no MongoDB.");
+    } catch (e) {
+      console.error("Erro ao salvar usuários:", e);
+    }
+  });
+
+  // Novo Pedido / Lançamento de Mesa
   socket.on('novo_pedido', async (pedido) => {
     try {
       if (db) {
         const existe = await db.collection('pedidos').findOne({ id: pedido.id });
         if (!existe) {
           await db.collection('pedidos').insertOne(pedido);
-          console.log(`📦 Novo pedido salvo no MongoDB da ${pedido.local} (${pedido.cliente})`);
         }
       }
-      
       io.emit('pedido_recebido', pedido);
       if (db) {
         const listaAtualizada = await db.collection('pedidos').find({}).toArray();
@@ -85,15 +107,13 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // Atualiza o status do pedido no banco (Pendente -> Preparando -> Pronto)
+  // Atualizar Status do Pedido
   socket.on('atualizar_status_pedido', async ({ idPedido, status }) => {
     try {
       if (db) {
         await db.collection('pedidos').updateOne({ id: idPedido }, { $set: { status } });
-      }
-      io.emit('status_pedido_atualizado', { idPedido, status });
-      if (db) {
         const listaAtualizada = await db.collection('pedidos').find({}).toArray();
+        io.emit('atualizar_status_pedido', { idPedido, status });
         io.emit('atualizar_lista_pedidos', listaAtualizada);
       }
     } catch (e) {
@@ -101,7 +121,7 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // Cliente solicita o fechamento da conta pelo autoatendimento
+  // Solicitar Fechamento de Conta
   socket.on('solicitar_fechamento', async (localChave) => {
     try {
       if (db) {
@@ -114,24 +134,32 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // Fecha e remove a comanda paga do banco de dados
-  socket.on('fechar_comanda', async (localChave) => {
+  // Fechar Comanda (Grava nos Relatórios de Vendas e Remove da Mesa Ativa)
+  socket.on('fechar_comanda', async ({ localChave, registroVenda }) => {
     try {
       if (db) {
+        // Grava histórico permanente de vendas para relatórios do gestor
+        if (registroVenda) {
+          await db.collection('vendas').insertOne(registroVenda);
+        }
+
+        // Remove os pedidos da comanda fechada
         await db.collection('pedidos').deleteMany({
           $or: [
             { local: localChave },
             { mesa: localChave.replace('Mesa ', '') }
           ]
         });
-        console.log(`🏁 Comanda fechada e removida do MongoDB: ${localChave}`);
-      }
-      if (db) {
-        const listaAtualizada = await db.collection('pedidos').find({}).toArray();
-        io.emit('atualizar_lista_pedidos', listaAtualizada);
+
+        const listaPedidos = await db.collection('pedidos').find({}).toArray();
+        const listaVendas = await db.collection('vendas').find({}).toArray();
+
+        io.emit('atualizar_lista_pedidos', listaPedidos);
+        io.emit('atualizar_vendas', listaVendas);
+        console.log(`🏁 Comanda ${localChave} fechada, gravada em vendas e removida das ativas.`);
       }
     } catch (e) {
-      console.error("Erro ao fechar comanda:", e);
+      console.error("Erro ao fechar comanda e salvar venda:", e);
     }
   });
 

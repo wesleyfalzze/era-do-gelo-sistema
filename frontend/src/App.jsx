@@ -4,8 +4,7 @@ import { io } from 'socket.io-client';
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
-const VERSAO_SISTEMA = "v2.7.0 • Atualizado em 02/09/2026 19:08";
-
+const VERSAO_SISTEMA = "v2.8.0 • Atualizado em 02/09/2026 19:40";
 const TOTAL_MESAS_SALAO = 15;
 
 const OPCOES_MOLHOS = [
@@ -23,7 +22,7 @@ const FORMAS_PAGAMENTO = [
   'Cartão de Débito'
 ];
 
-const CARDAPIO_INICIAL = [
+const CARDAPIO_PADRAO = [
   { id: 1, nome: 'Espetinho de Boi (Alcatra)', categoria: 'Espetinhos', preco: 12.00, descricao: 'Carne macia temperada na brasa' },
   { id: 2, nome: 'Espetinho de Frango com Bacon', categoria: 'Espetinhos', preco: 10.00, descricao: 'Frango suculento enrolado com bacon' },
   { id: 3, nome: 'Espetinho de Coração', categoria: 'Espetinhos', preco: 11.00, descricao: 'Coraçãozinho temperado no capricho' },
@@ -35,11 +34,10 @@ const CARDAPIO_INICIAL = [
   { id: 9, nome: 'Porção de Mandioca Frita', categoria: 'Porções', preco: 28.00, descricao: 'Bem crocante' }
 ];
 
-const USUARIOS_INICIAIS = [
+const USUARIOS_PADRAO = [
   { usuario: 'admin', senha: '@adm123', nome: 'Administrador Geral', tipo: 'adm' },
   { usuario: 'gestor1', senha: '123', nome: 'Carlos (Gestor)', tipo: 'gestor' },
-  { usuario: 'garcom1', senha: '123', nome: 'João (Garçom)', tipo: 'garcom' },
-  { usuario: 'garcom2', senha: '123', nome: 'Marcos (Garçom)', tipo: 'garcom' }
+  { usuario: 'garcom1', senha: '123', nome: 'João (Garçom)', tipo: 'garcom' }
 ];
 
 export default function App() {
@@ -50,10 +48,7 @@ export default function App() {
   const [inputSenha, setInputSenha] = useState('');
   const [erroLogin, setErroLogin] = useState('');
 
-  const [listaUsuarios, setListaUsuarios] = useState(() => {
-    const salvos = localStorage.getItem('eradogelo_usuarios');
-    return salvos ? JSON.parse(salvos) : USUARIOS_INICIAIS;
-  });
+  const [listaUsuarios, setListaUsuarios] = useState(USUARIOS_PADRAO);
   const [novoUsuario, setNovoUsuario] = useState('');
   const [novoSenhaUser, setNovoSenhaUser] = useState('');
   const [novoNomeUser, setNovoNomeUser] = useState('');
@@ -61,17 +56,13 @@ export default function App() {
 
   const [abaAtiva, setAbaAtiva] = useState('cardapio');
   const [categoriaSel, setCategoriaSel] = useState('Todas');
-  const [cardapio, setCardapio] = useState(CARDAPIO_INICIAL);
+  const [cardapio, setCardapio] = useState(CARDAPIO_PADRAO);
   const [carrinho, setCarrinho] = useState([]);
   
-  const [pedidos, setPedidos] = useState(() => {
-    const salvos = localStorage.getItem('eradogelo_pedidos_ativos');
-    return salvos ? JSON.parse(salvos) : [];
-  });
-
+  const [pedidos, setPedidos] = useState([]);
+  const [historicoVendas, setHistoricoVendas] = useState([]);
   const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
 
-  // Consulta por Mesa (Apenas número da mesa)
   const [mesaConsultaCliente, setMesaConsultaCliente] = useState('');
   const [contaConsultada, setContaConsultada] = useState(null);
   const [contaSolicitadaSucesso, setContaSolicitadaSucesso] = useState(false);
@@ -85,11 +76,6 @@ export default function App() {
   const [novaCategoriaItem, setNovaCategoriaItem] = useState('Espetinhos');
   const [novoPrecoItem, setNovoPrecoItem] = useState('');
   const [novaDescItem, setNovaDescItem] = useState('');
-
-  const [clientesSalvos, setClientesSalvos] = useState(() => {
-    const dados = localStorage.getItem('eradogelo_clientes');
-    return dados ? JSON.parse(dados) : {};
-  });
 
   const [tipoAtendimento, setTipoAtendimento] = useState('mesa');
   const [numMesa, setNumMesa] = useState('');
@@ -115,53 +101,44 @@ export default function App() {
     });
 
     socket.on('atualizar_lista_pedidos', (listaServidor) => {
-      if (listaServidor && listaServidor.length > 0) {
-        setPedidos(listaServidor);
+      if (listaServidor) setPedidos(listaServidor);
+    });
+
+    socket.on('atualizar_cardapio', (cardapioServidor) => {
+      if (cardapioServidor && cardapioServidor.length > 0) {
+        setCardapio(cardapioServidor);
       }
     });
 
+    socket.on('atualizar_usuarios', (usuariosServidor) => {
+      if (usuariosServidor && usuariosServidor.length > 0) {
+        setListaUsuarios(usuariosServidor);
+      }
+    });
+
+    socket.on('atualizar_vendas', (vendasServidor) => {
+      if (vendasServidor) setHistoricoVendas(vendasServidor);
+    });
+
     socket.on('pedido_recebido', (novoPedido) => {
-      setPedidos((prev) => {
-        if (prev.some((p) => p.id === novoPedido.id)) return prev;
-        return [novoPedido, ...prev];
-      });
-      
       setNovoPedidoAlerta(novoPedido);
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         audio.play().catch(() => {});
       } catch (e) {}
 
-      setTimeout(() => {
-        setNovoPedidoAlerta(null);
-      }, 8000);
-    });
-
-    socket.on('status_pedido_atualizado', ({ idPedido, status }) => {
-      setPedidos((prev) =>
-        prev.map((p) => (p.id === idPedido ? { ...p, status } : p))
-      );
+      setTimeout(() => setNovoPedidoAlerta(null), 8000);
     });
 
     return () => {
       socket.off('connect');
       socket.off('atualizar_lista_pedidos');
+      socket.off('atualizar_cardapio');
+      socket.off('atualizar_usuarios');
+      socket.off('atualizar_vendas');
       socket.off('pedido_recebido');
-      socket.off('status_pedido_atualizado');
     };
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('eradogelo_pedidos_ativos', JSON.stringify(pedidos));
-  }, [pedidos]);
-
-  useEffect(() => {
-    localStorage.setItem('eradogelo_clientes', JSON.stringify(clientesSalvos));
-  }, [clientesSalvos]);
-
-  useEffect(() => {
-    localStorage.setItem('eradogelo_usuarios', JSON.stringify(listaUsuarios));
-  }, [listaUsuarios]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -190,9 +167,6 @@ export default function App() {
   };
 
   const atualizarStatusPedido = (idPedido, novoStatus) => {
-    setPedidos((prev) =>
-      prev.map((p) => (p.id === idPedido ? { ...p, status: novoStatus } : p))
-    );
     socket.emit('atualizar_status_pedido', { idPedido, status: novoStatus });
     setMensagem(`🔔 Pedido atualizado para: ${novoStatus}`);
     setTimeout(() => setMensagem(''), 3000);
@@ -201,7 +175,7 @@ export default function App() {
   const cadastrarFuncionario = (e) => {
     e.preventDefault();
     if (!novoUsuario || !novoSenhaUser || !novoNomeUser) {
-      setMensagem('⚠️ Preencha todos os campos do usuário!');
+      setMensagem('⚠️ Preencha todos os campos!');
       setTimeout(() => setMensagem(''), 3000);
       return;
     }
@@ -213,11 +187,14 @@ export default function App() {
       tipo: novoTipoUser
     };
 
-    setListaUsuarios((prev) => [...prev, novo]);
+    const novaLista = [...listaUsuarios, novo];
+    setListaUsuarios(novaLista);
+    socket.emit('salvar_usuarios', novaLista);
+
     setNovoUsuario('');
     setNovoSenhaUser('');
     setNovoNomeUser('');
-    setMensagem('✅ Novo colaborador cadastrado!');
+    setMensagem('✅ Novo colaborador cadastrado e salvo no banco!');
     setTimeout(() => setMensagem(''), 3000);
   };
 
@@ -227,7 +204,9 @@ export default function App() {
       setTimeout(() => setMensagem(''), 3000);
       return;
     }
-    setListaUsuarios((prev) => prev.filter((u) => u.usuario !== userLogin));
+    const novaLista = listaUsuarios.filter((u) => u.usuario !== userLogin);
+    setListaUsuarios(novaLista);
+    socket.emit('salvar_usuarios', novaLista);
     setMensagem('🗑️ Colaborador removido.');
     setTimeout(() => setMensagem(''), 3000);
   };
@@ -248,26 +227,23 @@ export default function App() {
       descricao: novaDescItem
     };
 
-    setCardapio((prev) => [...prev, novo]);
+    const novoCardapio = [...cardapio, novo];
+    setCardapio(novoCardapio);
+    socket.emit('salvar_cardapio', novoCardapio);
+
     setNovoNomeItem('');
     setNovoPrecoItem('');
     setNovaDescItem('');
-    setMensagem('✅ Item adicionado ao cardápio!');
+    setMensagem('✅ Item adicionado e gravado no banco!');
     setTimeout(() => setMensagem(''), 3000);
   };
 
   const removerItemCardapio = (id) => {
-    setCardapio((prev) => prev.filter((i) => i.id !== id));
+    const novoCardapio = cardapio.filter((i) => i.id !== id);
+    setCardapio(novoCardapio);
+    socket.emit('salvar_cardapio', novoCardapio);
     setMensagem('🗑️ Item removido.');
     setTimeout(() => setMensagem(''), 3000);
-  };
-
-  const handleCelularChange = (e) => {
-    const tel = e.target.value;
-    setCelularCliente(tel);
-    if (clientesSalvos[tel]) {
-      setNomeCliente(clientesSalvos[tel]);
-    }
   };
 
   const categoriasUnicas = ['Todas', ...new Set(cardapio.map((item) => item.categoria))];
@@ -286,15 +262,12 @@ export default function App() {
     }
     setMolhosSelecionados((prev) => {
       const filtrados = prev.filter((m) => m !== 'Sem Molho');
-      return filtrados.includes(molho)
-        ? filtrados.filter((m) => m !== molho)
-        : [...filtrados, molho];
+      return filtrados.includes(molho) ? filtrados.filter((m) => m !== molho) : [...filtrados, molho];
     });
   };
 
   const confirmarAdicaoModal = () => {
     if (!itemSelecionado) return;
-
     const novoItemCarrinho = {
       ...itemSelecionado,
       quantidade: quantidadeModal,
@@ -302,7 +275,6 @@ export default function App() {
       molhos: molhosSelecionados,
       precoTotalItem: itemSelecionado.preco * quantidadeModal
     };
-
     setCarrinho((prev) => [...prev, novoItemCarrinho]);
     setItemSelecionado(null);
   };
@@ -312,15 +284,13 @@ export default function App() {
 
     let identificadorFinal = '';
     let numeroMesaFinal = 'Avulso';
-    let nomeClienteFinal = nomeCliente;
-    let celularClienteFinal = celularCliente;
+    let nomeClienteFinal = nomeCliente || 'Cliente';
 
     if (mesaAlvoGarcom) {
       const numFmt = String(mesaAlvoGarcom).padStart(2, '0');
       identificadorFinal = `Mesa ${numFmt}`;
       numeroMesaFinal = numFmt;
       nomeClienteFinal = `Mesa ${numFmt} (${usuarioLogado.nome})`;
-      celularClienteFinal = '00000000000';
     } else if (tipoAtendimento === 'mesa') {
       if (!numMesa || numMesa.trim() === '') {
         setMensagem('⚠️ Informe o NÚMERO DA MESA!');
@@ -332,27 +302,12 @@ export default function App() {
       numeroMesaFinal = numFmt;
     } else {
       if (!identificacaoAvulsa || identificacaoAvulsa.trim() === '') {
-        setMensagem('⚠️ Informe a identificação do Pedido!');
+        setMensagem('⚠️ Informe a identificação!');
         setTimeout(() => setMensagem(''), 4000);
         return;
       }
       identificadorFinal = `AVULSO: ${identificacaoAvulsa}`;
       numeroMesaFinal = 'Avulso';
-    }
-
-    if (!usuarioLogado) {
-      if (!celularCliente || celularCliente.trim() === '') {
-        setMensagem('⚠️ Informe o CELULAR!');
-        setTimeout(() => setMensagem(''), 4000);
-        return;
-      }
-
-      if (!nomeCliente || nomeCliente.trim() === '') {
-        setMensagem('⚠️ Informe o NOME!');
-        setTimeout(() => setMensagem(''), 4000);
-        return;
-      }
-      setClientesSalvos((prev) => ({ ...prev, [celularCliente]: nomeCliente }));
     }
 
     const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
@@ -363,7 +318,7 @@ export default function App() {
       tipo: mesaAlvoGarcom ? 'mesa' : tipoAtendimento,
       mesa: numeroMesaFinal,
       cliente: nomeClienteFinal,
-      celular: celularClienteFinal,
+      celular: celularCliente || '00000000000',
       atendente: usuarioLogado ? `${usuarioLogado.nome} (${usuarioLogado.tipo})` : 'Cliente (Autoatendimento)',
       itens: carrinho,
       total: totalCalculado,
@@ -375,17 +330,8 @@ export default function App() {
     setStatusEntregaPedido('enviando');
 
     socket.emit('novo_pedido', pedidoObjeto);
-    setPedidos((prev) => {
-      if (prev.some((p) => p.id === pedidoObjeto.id)) return prev;
-      const atualizados = [pedidoObjeto, ...prev];
-      localStorage.setItem('eradogelo_pedidos_ativos', JSON.stringify(atualizados));
-      return atualizados;
-    });
 
-    setTimeout(() => {
-      setStatusEntregaPedido('confirmado');
-    }, 600);
-
+    setTimeout(() => setStatusEntregaPedido('confirmado'), 600);
     setCarrinho([]);
     setMesaAlvoGarcom(null);
   };
@@ -402,10 +348,9 @@ export default function App() {
       acc[chave] = {
         local: chave,
         cliente: pedido.cliente,
-        celular: pedido.celular,
         pedidos: [],
         totalComanda: 0,
-        contaSolicitada: pedido.contaSolicitada || false
+        contaSolicitada: false
       };
     }
     acc[chave].pedidos.push(pedido);
@@ -414,7 +359,6 @@ export default function App() {
     return acc;
   }, {});
 
-  // Consulta conta apenas informando o número da mesa
   const consultarContaPorMesa = (e) => {
     e.preventDefault();
     if (!mesaConsultaCliente) {
@@ -422,11 +366,10 @@ export default function App() {
       setTimeout(() => setMensagem(''), 4000);
       return;
     }
-
     const numFmt = String(mesaConsultaCliente).padStart(2, '0');
     const chaveBuscada = `Mesa ${numFmt}`;
-
     const comandaEncontrada = comandasAgrupadas[chaveBuscada];
+
     if (!comandaEncontrada) {
       setContaConsultada({ status: 'nao_encontrada', local: chaveBuscada });
       return;
@@ -440,43 +383,38 @@ export default function App() {
     });
   };
 
-  // Solicitar fechamento da conta pelo autoatendimento
   const solicitarFechamentoConta = () => {
     if (!mesaConsultaCliente) return;
     const numFmt = String(mesaConsultaCliente).padStart(2, '0');
     const chaveBuscada = `Mesa ${numFmt}`;
-
-    // Atualiza os pedidos da mesa informando que a conta foi solicitada
-    setPedidos(prev => prev.map(p => {
-      let chave = p.local;
-      if (!chave && p.mesa && p.mesa !== 'Avulso') chave = `Mesa ${String(p.mesa).padStart(2, '0')}`;
-      if (chave === chaveBuscada) {
-        return { ...p, contaSolicitada: true };
-      }
-      return p;
-    }));
-
+    socket.emit('solicitar_fechamento', chaveBuscada);
     setContaSolicitadaSucesso(true);
     setTimeout(() => setContaSolicitadaSucesso(false), 5000);
   };
 
-  const encerarComanda = (localChave) => {
-    socket.emit('fechar_comanda', localChave);
-    const novosPedidos = pedidos.filter((p) => {
-      let chave = p.local;
-      if (!chave && p.mesa && p.mesa !== 'Avulso') {
-        chave = `Mesa ${String(p.mesa).padStart(2, '0')}`;
-      } else if (!chave) {
-        chave = 'Avulso';
-      }
-      return chave !== localChave;
-    });
-    setPedidos(novosPedidos);
-    localStorage.setItem('eradogelo_pedidos_ativos', JSON.stringify(novosPedidos));
+  const encerarComanda = (localChave, infoComanda) => {
+    const totalPago = Object.values(pagamentosMesa).reduce((a, b) => a + Number(b || 0), 0);
+    if (totalPago < infoComanda.totalComanda) {
+      setMensagem(`⚠️ O valor pago (R$ ${totalPago.toFixed(2)}) é menor que o total (R$ ${infoComanda.totalComanda.toFixed(2)})!`);
+      setTimeout(() => setMensagem(''), 4000);
+      return;
+    }
+
+    const registroVenda = {
+      id: Date.now(),
+      local: localChave,
+      cliente: infoComanda.cliente,
+      total: infoComanda.totalComanda,
+      pagamentos: pagamentosMesa,
+      horarioFechamento: new Date().toLocaleString('pt-BR'),
+      responsavelFechamento: usuarioLogado?.nome || 'Gestor'
+    };
+
+    socket.emit('fechar_comanda', { localChave, registroVenda });
     setMesaFechamento(null);
     setPagamentosMesa({});
     setItensSelecionadosFechamento({});
-    setMensagem(`🏁 Comanda ${localChave} fechada e paga com sucesso!`);
+    setMensagem(`🏁 Comanda ${localChave} fechada, gravada nas vendas e paga com sucesso!`);
     setTimeout(() => setMensagem(''), 4000);
   };
 
@@ -484,8 +422,6 @@ export default function App() {
     setMesaAlvoGarcom(numMesaStr);
     setNumMesa(numMesaStr);
     setAbaAtiva('cardapio');
-    setMensagem(`🛎️ Lançando itens diretamente para a Mesa ${numMesaStr}`);
-    setTimeout(() => setMensagem(''), 3000);
   };
 
   const totalCarrinho = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
@@ -498,7 +434,7 @@ export default function App() {
     return { numero: num, chave, ocupada, dados: comandasAgrupadas[chave] || null };
   });
 
-  const totalMesasOcupadas = listaMesas.filter((m) => m.ocupada).length;
+  const faturamentoTotalGeral = historicoVendas.reduce((acc, v) => acc + v.total, 0);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-3 md:p-6 pb-24 font-sans flex flex-col justify-between">
@@ -508,12 +444,12 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-black text-cyan-400 tracking-tight">Era do Gelo 🧊⚡</h1>
-                <span className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                <span className="bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
                   {usuarioLogado ? `• ${usuarioLogado.tipo}: ${usuarioLogado.nome}` : '• CARDÁPIO DIGITAL'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                {usuarioLogado ? 'Painel Operacional de Atendimento' : 'Faça seu pedido direto pelo celular ou mesa'}
+                {usuarioLogado ? 'Painel Operacional com Banco de Dados Nuvem' : 'Faça seu pedido direto pelo celular ou mesa'}
               </p>
             </div>
 
@@ -532,7 +468,7 @@ export default function App() {
                       onClick={() => setAbaAtiva('salao')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'salao' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
                     >
-                      🪑 Salão/Mesas ({totalMesasOcupadas})
+                      🪑 Salão
                     </button>
                     <button
                       onClick={() => setAbaAtiva('comandas')}
@@ -544,10 +480,16 @@ export default function App() {
                       onClick={() => setAbaAtiva('cozinha')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cozinha' ? 'bg-rose-500 text-slate-950' : 'text-rose-400'}`}
                     >
-                      🔥 Cozinha ({pedidos.filter(p => p.status !== 'Pronto').length})
+                      🔥 Cozinha
                     </button>
                     {(usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
                       <>
+                        <button
+                          onClick={() => setAbaAtiva('relatorios')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'relatorios' ? 'bg-amber-500 text-slate-950' : 'text-amber-400'}`}
+                        >
+                          📊 Relatórios
+                        </button>
                         <button
                           onClick={() => setAbaAtiva('gerenciar_cardapio')}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'gerenciar_cardapio' ? 'bg-emerald-500 text-slate-950' : 'text-emerald-400'}`}
@@ -578,7 +520,7 @@ export default function App() {
                   onClick={() => setModalLoginAberto(true)}
                   className="bg-slate-800 border border-slate-700 text-cyan-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all"
                 >
-                  🔐 Login Funcionário
+                  🔐 Login
                 </button>
               )}
             </div>
@@ -589,14 +531,11 @@ export default function App() {
           <div className="max-w-4xl mx-auto mb-4 p-4 bg-amber-500/20 border-2 border-amber-500 text-amber-300 rounded-2xl flex justify-between items-center animate-bounce shadow-2xl">
             <div>
               <span className="font-black text-sm block">🚨 NOVO PEDIDO CHEGOU! ({novoPedidoAlerta.local})</span>
-              <span className="text-xs text-amber-200">Cliente: {novoPedidoAlerta.cliente} • Atendente: {novoPedidoAlerta.atendente}</span>
+              <span className="text-xs text-amber-200">Cliente: {novoPedidoAlerta.cliente}</span>
             </div>
             <button
-              onClick={() => {
-                setAbaAtiva('cozinha');
-                setNovoPedidoAlerta(null);
-              }}
-              className="bg-amber-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow-lg hover:bg-amber-400"
+              onClick={() => { setAbaAtiva('cozinha'); setNovoPedidoAlerta(null); }}
+              className="bg-amber-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow-lg"
             >
               Ver na Cozinha 👀
             </button>
@@ -613,9 +552,7 @@ export default function App() {
           <main className="max-w-4xl mx-auto space-y-6">
             {!usuarioLogado && (
               <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl space-y-3">
-                <h2 className="text-sm font-bold text-cyan-400 flex items-center gap-1.5">
-                  🔍 Consultar Conta da Mesa (Itens Consumidos)
-                </h2>
+                <h2 className="text-sm font-bold text-cyan-400">🔍 Consultar Conta da Mesa</h2>
                 <form onSubmit={consultarContaPorMesa} className="flex gap-2">
                   <input
                     type="number"
@@ -624,15 +561,15 @@ export default function App() {
                     onChange={(e) => setMesaConsultaCliente(e.target.value)}
                     className="flex-1 bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
                   />
-                  <button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow">
-                    Consultar Conta 🔎
+                  <button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs">
+                    Consultar 🔎
                   </button>
                 </form>
 
                 {contaConsultada && (
                   <div className="mt-3 p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3 text-xs">
                     {contaConsultada.status === 'nao_encontrada' && (
-                      <p className="text-rose-400 font-bold">❌ Nenhuma comanda aberta encontrada para a Mesa {contaConsultada.local}.</p>
+                      <p className="text-rose-400 font-bold">❌ Nenhuma comanda aberta para a Mesa {contaConsultada.local}.</p>
                     )}
                     {contaConsultada.status === 'encontrado' && (
                       <>
@@ -643,27 +580,20 @@ export default function App() {
                         <div className="space-y-2 max-h-40 overflow-y-auto">
                           {contaConsultada.pedidos.map((p, idx) => (
                             <div key={idx} className="bg-slate-900 p-2 rounded border border-slate-800">
-                              <span className="text-[10px] text-slate-400 block mb-1">Pedido às {p.horario} • Status: <strong className="text-cyan-300">{p.status}</strong></span>
+                              <span className="text-[10px] text-slate-400 block mb-1">Às {p.horario} • <strong className="text-cyan-300">{p.status}</strong></span>
                               {p.itens.map((it, i) => (
                                 <div key={i} className="flex justify-between text-slate-300">
-                                  <span>{it.quantidade}x {it.nome} {it.ponto ? `(${it.ponto})` : ''}</span>
-                                  <span className="text-cyan-400 font-semibold">R$ {it.precoTotalItem.toFixed(2)}</span>
+                                  <span>{it.quantidade}x {it.nome}</span>
+                                  <span className="text-cyan-400">R$ {it.precoTotalItem.toFixed(2)}</span>
                                 </div>
                               ))}
                             </div>
                           ))}
                         </div>
-
-                        <button
-                          onClick={solicitarFechamentoConta}
-                          className="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow"
-                        >
-                          🛎️ Solicitar Fechamento de Conta ao Gestor
+                        <button onClick={solicitarFechamentoConta} className="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs">
+                          🛎️ Solicitar Fechamento de Conta
                         </button>
-
-                        {contaSolicitadaSucesso && (
-                          <p className="text-emerald-400 font-bold text-center mt-2">✅ Solicitação enviada ao Gestor com sucesso!</p>
-                        )}
+                        {contaSolicitadaSucesso && <p className="text-emerald-400 font-bold text-center mt-2">✅ Solicitada com sucesso!</p>}
                       </>
                     )}
                   </div>
@@ -675,7 +605,7 @@ export default function App() {
               <section className="md:col-span-2 space-y-4">
                 {mesaAlvoGarcom && (
                   <div className="bg-cyan-500/20 border border-cyan-500 p-3 rounded-xl flex justify-between items-center text-xs">
-                    <span className="font-bold text-cyan-300">🛎️ Lançando pedido para a <strong>Mesa {mesaAlvoGarcom}</strong> (Atendente: {usuarioLogado?.nome})</span>
+                    <span className="font-bold text-cyan-300">🛎️ Lançando para a Mesa {mesaAlvoGarcom}</span>
                     <button onClick={() => setMesaAlvoGarcom(null)} className="text-rose-400 font-bold underline">Cancelar</button>
                   </div>
                 )}
@@ -685,9 +615,7 @@ export default function App() {
                     <button
                       key={cat}
                       onClick={() => setCategoriaSel(cat)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
-                        categoriaSel === cat ? 'bg-cyan-500 text-slate-950 border-cyan-500' : 'bg-slate-900 text-slate-400 border-slate-800'
-                      }`}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${categoriaSel === cat ? 'bg-cyan-500 text-slate-950 border-cyan-500' : 'bg-slate-900 text-slate-400 border-slate-800'}`}
                     >
                       {cat}
                     </button>
@@ -709,9 +637,7 @@ export default function App() {
                         {item.descricao && <p className="text-xs text-slate-400 mt-1">{item.descricao}</p>}
                         <p className="text-cyan-400 font-extrabold text-sm mt-2">R$ {item.preco.toFixed(2)}</p>
                       </div>
-                      <button className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold px-3 py-2 rounded-lg text-xs">
-                        + Opções
-                      </button>
+                      <button className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold px-3 py-2 rounded-lg text-xs">+ Opções</button>
                     </div>
                   ))}
                 </div>
@@ -723,7 +649,6 @@ export default function App() {
                     <span>Sua Sacola</span>
                     <span className="bg-cyan-500/10 text-cyan-400 text-xs px-2 py-0.5 rounded-full">{carrinho.length} itens</span>
                   </h2>
-
                   {carrinho.length === 0 ? (
                     <p className="text-slate-500 text-xs py-4 text-center">Nenhum item selecionado.</p>
                   ) : (
@@ -734,7 +659,6 @@ export default function App() {
                             <span className="text-slate-300">{item.quantidade}x {item.nome}</span>
                             <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
                           </div>
-                          {item.ponto && <p className="text-[11px] text-cyan-400 mt-0.5">📍 {item.ponto}</p>}
                         </div>
                       ))}
                     </div>
@@ -743,54 +667,21 @@ export default function App() {
 
                 <div className="border-t border-slate-800 pt-3 space-y-3">
                   <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3">
-                    <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">Identificação do Pedido</span>
-                    
+                    <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">Identificação</span>
                     {!mesaAlvoGarcom && (
                       <>
                         <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
                           <button type="button" onClick={() => setTipoAtendimento('mesa')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'mesa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Mesa</button>
                           <button type="button" onClick={() => setTipoAtendimento('avulso')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'avulso' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Avulso</button>
                         </div>
-
                         {tipoAtendimento === 'mesa' ? (
-                          <input
-                            type="number"
-                            placeholder="Número da Mesa (Ex: 04)"
-                            value={numMesa}
-                            onChange={(e) => setNumMesa(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg"
-                          />
+                          <input type="number" placeholder="Número da Mesa" value={numMesa} onChange={(e) => setNumMesa(e.target.value)} className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg" />
                         ) : (
-                          <input
-                            type="text"
-                            placeholder="Identificação (Ex: Balcão 01)"
-                            value={identificacaoAvulsa}
-                            onChange={(e) => setIdentificacaoAvulsa(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg"
-                          />
+                          <input type="text" placeholder="Identificação (Ex: Balcão)" value={identificacaoAvulsa} onChange={(e) => setIdentificacaoAvulsa(e.target.value)} className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg" />
                         )}
                       </>
                     )}
-
-                    {!usuarioLogado && (
-                      <>
-                        <input
-                          type="tel"
-                          placeholder="Celular do Cliente"
-                          value={celularCliente}
-                          onChange={handleCelularChange}
-                          className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
-                        />
-
-                        <input
-                          type="text"
-                          placeholder="Nome do Cliente"
-                          value={nomeCliente}
-                          onChange={(e) => setNomeCliente(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
-                        />
-                      </>
-                    )}
+                    <input type="text" placeholder="Seu Nome" value={nomeCliente} onChange={(e) => setNomeCliente(e.target.value)} className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg" />
                   </div>
 
                   <div className="flex justify-between text-sm font-bold">
@@ -798,12 +689,8 @@ export default function App() {
                     <span className="text-cyan-400 text-base">R$ {totalCarrinho.toFixed(2)}</span>
                   </div>
 
-                  <button
-                    onClick={enviarPedido}
-                    disabled={carrinho.length === 0}
-                    className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 text-slate-950 font-extrabold py-3 rounded-xl text-xs shadow-lg"
-                  >
-                    Enviar Pedido para Cozinha
+                  <button onClick={enviarPedido} disabled={carrinho.length === 0} className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 text-slate-950 font-extrabold py-3 rounded-xl text-xs shadow-lg">
+                    Enviar para Cozinha
                   </button>
                 </div>
               </section>
@@ -813,25 +700,16 @@ export default function App() {
 
         {abaAtiva === 'salao' && usuarioLogado && (
           <main className="max-w-4xl mx-auto space-y-4">
-            <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
+            <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
               <div>
                 <h2 className="text-base font-bold text-slate-100">Mapa Visual do Salão</h2>
-                <p className="text-xs text-slate-400">Clique em uma mesa para lançar novos itens ou gerenciar a conta.</p>
-              </div>
-              <div className="flex items-center gap-4 text-xs font-bold">
-                <span className="text-emerald-400">Livre: {TOTAL_MESAS_SALAO - totalMesasOcupadas}</span>
-                <span className="text-rose-400">Ocupada: {totalMesasOcupadas}</span>
+                <p className="text-xs text-slate-400">Acompanhe abaixo o total consumido (A pagar) de cada mesa em tempo real.</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               {listaMesas.map((m) => (
-                <div
-                  key={m.numero}
-                  className={`p-4 rounded-2xl border flex flex-col justify-between h-36 shadow-lg ${
-                    m.ocupada ? 'bg-rose-950/40 border-rose-500/50' : 'bg-slate-900 border-slate-800'
-                  }`}
-                >
+                <div key={m.numero} className={`p-4 rounded-2xl border flex flex-col justify-between h-40 shadow-lg ${m.ocupada ? 'bg-rose-950/40 border-rose-500/50' : 'bg-slate-900 border-slate-800'}`}>
                   <div className="flex justify-between items-center w-full">
                     <span className="text-xs font-black text-slate-400">Mesa</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${m.ocupada ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
@@ -843,18 +721,17 @@ export default function App() {
                     <span className="text-3xl font-black text-slate-100">{m.numero}</span>
                   </div>
 
-                  {m.ocupada && (
-                    <div className="text-[10px] text-rose-400 font-bold truncate">
-                      R$ {m.dados.totalComanda.toFixed(2)}
-                      {m.dados.contaSolicitada && <span className="block text-amber-400">🔔 Conta Solicitada!</span>}
+                  {m.ocupada ? (
+                    <div className="text-[11px] font-bold space-y-0.5 border-t border-rose-500/30 pt-1">
+                      <span className="text-rose-400 block">A Pagar: R$ {m.dados.totalComanda.toFixed(2)}</span>
+                      {m.dados.contaSolicitada && <span className="text-amber-400 block animate-pulse">🔔 Pediu a Conta!</span>}
                     </div>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 block">A Pagar: R$ 0,00</span>
                   )}
 
-                  <button
-                    onClick={() => selecionarMesaParaLancar(m.numero)}
-                    className="mt-1 bg-cyan-500/20 hover:bg-cyan-500 hover:text-slate-950 text-cyan-400 border border-cyan-500/30 py-1.5 rounded-lg text-[11px] font-bold transition-all"
-                  >
-                    + Lançar Pedido
+                  <button onClick={() => selecionarMesaParaLancar(m.numero)} className="mt-1 bg-cyan-500/20 hover:bg-cyan-500 hover:text-slate-950 text-cyan-400 border border-cyan-500/30 py-1.5 rounded-lg text-[11px] font-bold transition-all">
+                    + Lançar
                   </button>
                 </div>
               ))}
@@ -870,59 +747,25 @@ export default function App() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(comandasAgrupadas).map(([local, info]) => {
-                  // Permitir fechar conta APENAS se for Gestor ou Administrador (usuarioLogado.tipo === 'gestor' ou 'adm')
                   const podeFechar = usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor';
-
                   return (
-                    <div key={local} className={`bg-slate-900 p-4 rounded-xl border space-y-3 ${info.contaSolicitada ? 'border-amber-500 shadow-amber-500/10 shadow-xl' : 'border-slate-800'}`}>
+                    <div key={local} className={`bg-slate-900 p-4 rounded-xl border space-y-3 ${info.contaSolicitada ? 'border-amber-500 shadow-xl' : 'border-slate-800'}`}>
                       <div className="flex justify-between items-start pb-2 border-b border-slate-800">
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="bg-cyan-500 text-slate-950 font-black px-2 py-0.5 rounded text-xs">{local}</span>
-                            {info.contaSolicitada && (
-                              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">
-                                🔔 Pediu a Conta
-                              </span>
-                            )}
+                            {info.contaSolicitada && <span className="bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">🔔 Pediu Conta</span>}
                           </div>
                           <span className="text-xs text-slate-300 font-bold mt-1 block">{info.cliente}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs font-black text-cyan-400 block">R$ {info.totalComanda.toFixed(2)}</span>
-                          {podeFechar ? (
-                            <button 
-                              onClick={() => { 
-                                setMesaFechamento(info); 
-                                setTipoDivisao('total'); 
-                                setQtdPessoas(1); 
-                                setPagamentosMesa({});
-                                setItensSelecionadosFechamento({});
-                              }} 
-                              className="mt-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3 py-1 rounded text-[11px] font-black transition-all shadow"
-                            >
+                          <span className="text-xs font-black text-cyan-400 block">Total: R$ {info.totalComanda.toFixed(2)}</span>
+                          {podeFechar && (
+                            <button onClick={() => { setMesaFechamento(info); setTipoDivisao('total'); setQtdPessoas(1); setPagamentosMesa({}); }} className="mt-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3 py-1 rounded text-[11px] font-black shadow">
                               📊 Fechar Conta (Gestor)
                             </button>
-                          ) : (
-                            <span className="text-[10px] text-slate-500 block mt-1">Apenas Gestor/Adm</span>
                           )}
                         </div>
-                      </div>
-
-                      <div className="space-y-1 max-h-36 overflow-y-auto">
-                        {info.pedidos.map((p, idx) => (
-                          <div key={idx} className="text-[11px] text-slate-400 bg-slate-950 p-2 rounded space-y-1">
-                            <div className="flex justify-between text-slate-300 font-bold border-b border-slate-900 pb-0.5">
-                              <span>👤 {p.cliente} ({p.atendente})</span>
-                              <span className="text-cyan-400">R$ {p.total.toFixed(2)}</span>
-                            </div>
-                            {p.itens.map((it, i) => (
-                              <div key={i} className="flex justify-between pl-2">
-                                <span>{it.quantidade}x {it.nome} {it.ponto ? `(${it.ponto})` : ''}</span>
-                                <span className="text-cyan-300">R$ {it.precoTotalItem.toFixed(2)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
                       </div>
                     </div>
                   );
@@ -932,67 +775,64 @@ export default function App() {
           </main>
         )}
 
+        {abaAtiva === 'relatorios' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
+          <main className="max-w-4xl mx-auto space-y-5">
+            <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
+              <h2 className="text-lg font-bold text-amber-400">📊 Relatório Financeiro Geral de Vendas</h2>
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
+                <span className="text-sm font-bold text-slate-300">Faturamento Total Acumulado:</span>
+                <span className="text-2xl font-black text-emerald-400">R$ {faturamentoTotalGeral.toFixed(2)}</span>
+              </div>
+              <p className="text-xs text-slate-400">Total de vendas pagas registradas no banco: {historicoVendas.length}</p>
+            </div>
+
+            <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
+              <h3 className="text-sm font-bold text-slate-100">Histórico de Comandas Pagas</h3>
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {historicoVendas.length === 0 ? (
+                  <p className="text-slate-500 text-xs">Nenhuma venda registrada ainda.</p>
+                ) : (
+                  historicoVendas.map((v) => (
+                    <div key={v.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1">
+                      <div className="flex justify-between font-bold text-cyan-400">
+                        <span>{v.local} • {v.cliente}</span>
+                        <span className="text-emerald-400">R$ {v.total.toFixed(2)}</span>
+                      </div>
+                      <p className="text-slate-400 text-[10px]">Fechado por {v.responsavelFechamento} às {v.horarioFechamento}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </main>
+        )}
+
         {abaAtiva === 'cozinha' && usuarioLogado && (
           <main className="max-w-4xl mx-auto space-y-4">
-            <div className="bg-rose-950/20 border border-rose-500/30 p-4 rounded-xl">
-              <h2 className="text-lg font-black text-rose-400">🔥 Painel da Cozinha (KDS)</h2>
-            </div>
+            <h2 className="text-lg font-black text-rose-400">🔥 Painel da Cozinha (KDS)</h2>
             {pedidos.length === 0 ? (
-              <div className="bg-slate-900 p-8 rounded-xl border border-slate-800 text-center text-slate-500 text-sm">
-                Nenhum pedido na cozinha no momento. 🧊
-              </div>
+              <div className="bg-slate-900 p-8 rounded-xl border border-slate-800 text-center text-slate-500 text-sm">Nenhum pedido na cozinha.</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {pedidos.map((p) => {
-                  const statusAtual = p.status || 'Pendente';
-                  return (
-                    <div key={p.id} className={`bg-slate-900 p-4 rounded-xl border space-y-3 shadow-xl ${statusAtual === 'Pronto' ? 'border-emerald-500/60 bg-emerald-950/10' : statusAtual === 'Preparando' ? 'border-amber-500/60' : 'border-rose-500/40'}`}>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-                        <div>
-                          <span className="bg-rose-500 text-slate-950 font-black px-2 py-1 rounded text-xs mr-2">{p.local}</span>
-                          <span className="text-xs text-white font-bold">{p.cliente}</span>
-                        </div>
-                        <span className="text-xs text-slate-400 font-mono">🕒 {p.horario}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-400">Atendente: <strong className="text-cyan-400">{p.atendente}</strong></span>
-                        <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${
-                          statusAtual === 'Pronto' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                          statusAtual === 'Preparando' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                          'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                        }`}>
-                          {statusAtual === 'Pronto' ? '🟢 Pronto' : statusAtual === 'Preparando' ? '🟡 Preparando' : '🔴 Pendente'}
-                        </span>
-                      </div>
-
-                      <ul className="space-y-2 text-xs">
-                        {p.itens.map((it, idx) => (
-                          <li key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                            <div className="font-bold text-slate-200">{it.quantidade}x {it.nome}</div>
-                            {it.ponto && <div className="text-cyan-400 text-[11px]">📍 Ponto: {it.ponto}</div>}
-                            {it.molhos && it.molhos.length > 0 && <div className="text-emerald-400 text-[11px]">🥣 Molhos: {it.molhos.join(', ')}</div>}
-                          </li>
-                        ))}
-                      </ul>
-
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
-                        <button
-                          onClick={() => atualizarStatusPedido(p.id, 'Preparando')}
-                          className="bg-amber-500/10 hover:bg-amber-500 hover:text-slate-950 text-amber-400 border border-amber-500/30 font-bold py-2 rounded-lg text-xs transition-all"
-                        >
-                          👨‍🍳 Preparando
-                        </button>
-                        <button
-                          onClick={() => atualizarStatusPedido(p.id, 'Pronto')}
-                          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-lg text-xs transition-all shadow-lg"
-                        >
-                          🔔 Pronto!
-                        </button>
-                      </div>
+                {pedidos.map((p) => (
+                  <div key={p.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3 shadow-xl">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                      <span className="bg-rose-500 text-slate-950 font-black px-2 py-1 rounded text-xs">{p.local}</span>
+                      <span className="text-xs text-slate-400">🕒 {p.horario}</span>
                     </div>
-                  );
-                })}
+                    <ul className="space-y-2 text-xs">
+                      {p.itens.map((it, idx) => (
+                        <li key={idx} className="bg-slate-950 p-2 rounded border border-slate-800">
+                          <div className="font-bold text-slate-200">{it.quantidade}x {it.nome}</div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+                      <button onClick={() => atualizarStatusPedido(p.id, 'Preparando')} className="bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold py-2 rounded text-xs">Preparando</button>
+                      <button onClick={() => atualizarStatusPedido(p.id, 'Pronto')} className="bg-emerald-500 text-slate-950 font-black py-2 rounded text-xs">Pronto!</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </main>
@@ -1001,7 +841,7 @@ export default function App() {
         {abaAtiva === 'gerenciar_cardapio' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
           <main className="max-w-4xl mx-auto space-y-5">
             <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
-              <h2 className="text-base font-bold text-emerald-400">⚙️ Adicionar Novo Item ao Cardápio</h2>
+              <h2 className="text-base font-bold text-emerald-400">⚙️ Adicionar Produto ao Cardápio</h2>
               <form onSubmit={adicionarItemCardapio} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input type="text" placeholder="Nome do Item" value={novoNomeItem} onChange={(e) => setNovoNomeItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
                 <select value={novaCategoriaItem} onChange={(e) => setNovaCategoriaItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white">
@@ -1010,23 +850,17 @@ export default function App() {
                   <option value="Porções">Porções</option>
                 </select>
                 <input type="number" step="0.01" placeholder="Preço (R$)" value={novoPrecoItem} onChange={(e) => setNovoPrecoItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
-                <input type="text" placeholder="Descrição opcional" value={novaDescItem} onChange={(e) => setNovaDescItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
-                <button type="submit" className="sm:col-span-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl text-xs">
-                  Cadastrar Item
-                </button>
+                <input type="text" placeholder="Descrição" value={novaDescItem} onChange={(e) => setNovaDescItem(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
+                <button type="submit" className="sm:col-span-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl text-xs">Salvar no Banco</button>
               </form>
             </div>
-
             <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
-              <h2 className="text-base font-bold text-slate-100">Itens Atuais do Cardápio</h2>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+              <h3 className="text-sm font-bold text-slate-100">Produtos Cadastrados</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
                 {cardapio.map((i) => (
                   <div key={i.id} className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs">
-                    <div>
-                      <span className="font-bold text-white">{i.nome}</span>
-                      <span className="text-cyan-400 ml-2">R$ {i.preco.toFixed(2)}</span>
-                    </div>
-                    <button onClick={() => removerItemCardapio(i.id)} className="bg-rose-500/20 text-rose-400 px-3 py-1 rounded-lg font-bold">Remover</button>
+                    <span>{i.nome} - R$ {i.preco.toFixed(2)}</span>
+                    <button onClick={() => removerItemCardapio(i.id)} className="bg-rose-500/20 text-rose-400 px-3 py-1 rounded font-bold">Remover</button>
                   </div>
                 ))}
               </div>
@@ -1037,37 +871,26 @@ export default function App() {
         {abaAtiva === 'gerenciar_usuarios' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
           <main className="max-w-4xl mx-auto space-y-5">
             <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
-              <h2 className="text-base font-bold text-indigo-400">👥 Cadastrar Novo Garçom ou Gestor</h2>
+              <h2 className="text-base font-bold text-indigo-400">👥 Cadastrar Usuário</h2>
               <form onSubmit={cadastrarFuncionario} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input type="text" placeholder="Nome Completo / Apelido" value={novoNomeUser} onChange={(e) => setNovoNomeUser(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
-                <input type="text" placeholder="Login de Acesso (ex: garcom2)" value={novoUsuario} onChange={(e) => setNovoUsuario(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
+                <input type="text" placeholder="Nome" value={novoNomeUser} onChange={(e) => setNovoNomeUser(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
+                <input type="text" placeholder="Login" value={novoUsuario} onChange={(e) => setNovoUsuario(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
                 <input type="password" placeholder="Senha" value={novoSenhaUser} onChange={(e) => setNovoSenhaUser(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
                 <select value={novoTipoUser} onChange={(e) => setNovoTipoUser(e.target.value)} className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white">
                   <option value="garcom">Garçom</option>
                   <option value="gestor">Gestor</option>
                   <option value="adm">Administrador</option>
                 </select>
-                <button type="submit" className="sm:col-span-2 bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black py-2.5 rounded-xl text-xs">
-                  Criar Usuário de Acesso
-                </button>
+                <button type="submit" className="sm:col-span-2 bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black py-2.5 rounded-xl text-xs">Cadastrar Colaborador</button>
               </form>
             </div>
-
             <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
-              <h2 className="text-base font-bold text-slate-100">Colaboradores Cadastrados</h2>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+              <h3 className="text-sm font-bold text-slate-100">Usuários Ativos</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
                 {listaUsuarios.map((u) => (
                   <div key={u.usuario} className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs">
-                    <div>
-                      <span className="font-bold text-white">{u.nome}</span>
-                      <span className="text-cyan-400 ml-2 font-mono">({u.usuario})</span>
-                      <span className="bg-slate-800 text-slate-300 ml-3 px-2 py-0.5 rounded uppercase text-[10px]">{u.tipo}</span>
-                    </div>
-                    {u.usuario !== 'admin' && (
-                      <button onClick={() => removerFuncionario(u.usuario)} className="bg-rose-500/20 text-rose-400 px-3 py-1 rounded-lg font-bold">
-                        Remover
-                      </button>
-                    )}
+                    <span>{u.nome} ({u.usuario}) - <strong>{u.tipo}</strong></span>
+                    {u.usuario !== 'admin' && <button onClick={() => removerFuncionario(u.usuario)} className="bg-rose-500/20 text-rose-400 px-3 py-1 rounded font-bold">Remover</button>}
                   </div>
                 ))}
               </div>
@@ -1079,26 +902,14 @@ export default function App() {
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-5">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <h3 className="font-bold text-base text-cyan-400">Login de Funcionário</h3>
+                <h3 className="font-bold text-base text-cyan-400">Login</h3>
                 <button onClick={() => setModalLoginAberto(false)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
               </div>
-
               <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Usuário:</label>
-                  <input type="text" placeholder="Ex: garcom1 ou admin" value={inputUsuario} onChange={(e) => setInputUsuario(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">Senha:</label>
-                  <input type="password" placeholder="Digite sua senha" value={inputSenha} onChange={(e) => setInputSenha(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-cyan-400" />
-                </div>
-
+                <input type="text" placeholder="Usuário" value={inputUsuario} onChange={(e) => setInputUsuario(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
+                <input type="password" placeholder="Senha" value={inputSenha} onChange={(e) => setInputSenha(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" />
                 {erroLogin && <p className="text-xs font-bold text-rose-400 text-center">{erroLogin}</p>}
-
-                <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">
-                  Entrar no Sistema
-                </button>
+                <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs">Entrar</button>
               </form>
             </div>
           </div>
@@ -1111,32 +922,16 @@ export default function App() {
                 <h3 className="font-bold text-sm text-cyan-400">{itemSelecionado.nome}</h3>
                 <button onClick={() => setItemSelecionado(null)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
               </div>
-
               {itemSelecionado.categoria === 'Espetinhos' && (
                 <div className="space-y-2">
                   <span className="text-xs font-bold text-slate-300">Ponto da Carne:</span>
                   {['Mal passado', 'Ao ponto', 'Bem passado'].map((p) => (
                     <label key={p} onClick={() => setPontoCarne(p)} className={`flex justify-between p-2 rounded-lg border text-xs cursor-pointer ${pontoCarne === p ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-slate-800 text-slate-400'}`}>
                       <span>{p}</span>
-                      <input type="radio" checked={pontoCarne === p} onChange={() => {}} className="accent-cyan-500" />
                     </label>
                   ))}
                 </div>
               )}
-
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-300">Escolha os Molhos:</span>
-                {OPCOES_MOLHOS.map((molho) => {
-                  const marcado = molhosSelecionados.includes(molho);
-                  return (
-                    <label key={molho} onClick={() => alternarMolho(molho)} className={`flex justify-between p-2 rounded-lg border text-xs cursor-pointer ${marcado ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-slate-800 text-slate-400'}`}>
-                      <span>{molho}</span>
-                      <input type="checkbox" checked={marcado} onChange={() => {}} className="accent-cyan-500" />
-                    </label>
-                  );
-                })}
-              </div>
-
               <div className="flex items-center gap-3 pt-2">
                 <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1">
                   <button onClick={() => setQuantidadeModal((q) => Math.max(1, q - 1))} className="w-8 h-8 font-bold">-</button>
@@ -1154,143 +949,40 @@ export default function App() {
         {pedidoEnviadoSucesso && (
           <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 z-50">
             <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl text-center">
-              {statusEntregaPedido === 'enviando' ? (
-                <div className="space-y-4 py-6">
-                  <div className="w-14 h-14 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                  <p className="text-sm font-bold text-cyan-400">Transmitindo pedido para a Mesa e Cozinha...</p>
-                </div>
-              ) : (
-                <>
-                  <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl font-black border border-emerald-500/40">
-                    ✓
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-emerald-400">Pedido Enviado com Sucesso!</h3>
-                    <p className="text-xs text-slate-300 mt-1">
-                      ✅ Confirmado na <strong className="text-cyan-400">Comanda ({pedidoEnviadoSucesso.local})</strong> e transmitido para a <strong className="text-rose-400">Cozinha</strong>!
-                    </p>
-                  </div>
-
-                  <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-left space-y-1.5 text-xs">
-                    <div className="flex justify-between font-bold">
-                      <span className="text-cyan-400">{pedidoEnviadoSucesso.local}</span>
-                      <span className="text-slate-400">{pedidoEnviadoSucesso.horario}</span>
-                    </div>
-                    <p className="text-slate-300">Cliente/Atendente: <strong>{pedidoEnviadoSucesso.cliente}</strong></p>
-                    <div className="border-t border-slate-800 pt-2 space-y-1 max-h-28 overflow-y-auto">
-                      {pedidoEnviadoSucesso.itens.map((it, idx) => (
-                        <div key={idx} className="flex justify-between text-slate-400">
-                          <span>{it.quantidade}x {it.nome}</span>
-                          <span className="text-white font-semibold">R$ {it.precoTotalItem.toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="border-t border-slate-800 pt-2 flex justify-between font-extrabold text-sm text-cyan-400">
-                      <span>Total do Pedido:</span>
-                      <span>R$ {pedidoEnviadoSucesso.total.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setPedidoEnviadoSucesso(null)}
-                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg transition-all"
-                  >
-                    OK / Fazer Novo Pedido
-                  </button>
-                </>
-              )}
+              <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl font-black border border-emerald-500/40">✓</div>
+              <div>
+                <h3 className="text-xl font-black text-emerald-400">Pedido Enviado com Sucesso!</h3>
+                <p className="text-xs text-slate-300 mt-1">Registrado na comanda e enviado para a cozinha!</p>
+              </div>
+              <button onClick={() => setPedidoEnviadoSucesso(null)} className="w-full bg-emerald-500 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">OK</button>
             </div>
           </div>
         )}
 
         {mesaFechamento && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-5 space-y-4 shadow-2xl">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <div>
-                  <h3 className="font-bold text-base text-cyan-400">Fechamento de Conta ({mesaFechamento.local})</h3>
-                  <p className="text-xs text-slate-400">Cliente: {mesaFechamento.cliente}</p>
-                </div>
+                <h3 className="font-bold text-base text-cyan-400">Fechamento de Conta ({mesaFechamento.local})</h3>
                 <button onClick={() => setMesaFechamento(null)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
               </div>
-
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-300">Modo de Fechamento:</span>
-                <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-                  <button onClick={() => setTipoDivisao('total')} className={`py-2 font-bold rounded-lg ${tipoDivisao === 'total' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Total</button>
-                  <button onClick={() => setTipoDivisao('pessoa')} className={`py-2 font-bold rounded-lg ${tipoDivisao === 'pessoa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Por Pessoa</button>
-                  <button onClick={() => setTipoDivisao('itens')} className={`py-2 font-bold rounded-lg ${tipoDivisao === 'itens' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Selecionar Itens</button>
-                </div>
-              </div>
-
-              {tipoDivisao === 'itens' && (
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
-                  <span className="text-xs font-bold text-slate-300 block">Selecione os itens a serem pagos agora:</span>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                    {mesaFechamento.pedidos.flatMap((p) => p.itens).map((it, idx) => {
-                      const chaveItem = `${idx}-${it.nome}`;
-                      const marcado = Boolean(itensSelecionadosFechamento[chaveItem]);
-                      return (
-                        <div 
-                          key={idx} 
-                          onClick={() => setItensSelecionadosFechamento(prev => ({ ...prev, [chaveItem]: !prev[chaveItem] }))}
-                          className={`flex justify-between items-center p-2 rounded-lg border text-xs cursor-pointer ${marcado ? 'bg-cyan-500/10 border-cyan-500 text-cyan-300' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
-                        >
-                          <span>{it.quantidade}x {it.nome}</span>
-                          <span className="font-bold">R$ {it.precoTotalItem.toFixed(2)}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {tipoDivisao === 'pessoa' && (
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
-                  <span className="font-bold text-slate-300">Dividir total por quantas pessoas?</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setQtdPessoas(q => Math.max(1, q - 1))} className="bg-slate-800 px-2.5 py-1 rounded font-bold">-</button>
-                    <span className="font-bold text-cyan-400 text-sm">{qtdPessoas}</span>
-                    <button onClick={() => setQtdPessoas(q => q + 1)} className="bg-slate-800 px-2.5 py-1 rounded font-bold">+</button>
-                  </div>
-                </div>
-              )}
-
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-400">Valor a Pagar:</span>
-                <span className="text-xl font-black text-emerald-400">
-                  R$ {
-                    tipoDivisao === 'pessoa' ? (mesaFechamento.totalComanda / qtdPessoas).toFixed(2) :
-                    tipoDivisao === 'itens' ? mesaFechamento.pedidos.flatMap((p) => p.itens).reduce((acc, it, idx) => itensSelecionadosFechamento[`${idx}-${it.nome}`] ? acc + it.precoTotalItem : acc, 0).toFixed(2) :
-                    mesaFechamento.totalComanda.toFixed(2)
-                  }
-                </span>
+                <span className="text-xs font-bold text-slate-400">Total a Pagar:</span>
+                <span className="text-xl font-black text-emerald-400">R$ {mesaFechamento.totalComanda.toFixed(2)}</span>
               </div>
-
               <div className="space-y-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-xs font-bold text-slate-300 block">Formas de Pagamento (Dividir entre as formas):</span>
+                <span className="text-xs font-bold text-slate-300 block">Formas de Pagamento:</span>
                 <div className="grid grid-cols-2 gap-2">
                   {FORMAS_PAGAMENTO.map((forma) => (
                     <div key={forma} className="bg-slate-900 p-2 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
                       <span>{forma}</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="R$ 0,00"
-                        value={pagamentosMesa[forma] || ''}
-                        onChange={(e) => setPagamentosMesa(prev => ({ ...prev, [forma]: Number(e.target.value) }))}
-                        className="w-20 bg-slate-950 border border-slate-800 p-1 rounded text-cyan-400 font-bold text-right"
-                      />
+                      <input type="number" step="0.01" placeholder="R$ 0,00" value={pagamentosMesa[forma] || ''} onChange={(e) => setPagamentosMesa(prev => ({ ...prev, [forma]: e.target.value }))} className="w-20 bg-slate-950 border border-slate-800 p-1 rounded text-cyan-400 font-bold text-right" />
                     </div>
                   ))}
                 </div>
               </div>
-
-              <button 
-                onClick={() => encerarComanda(mesaFechamento.local)} 
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg transition-all"
-              >
-                🏁 Confirmar Pagamento e Liberar Mesa
+              <button onClick={() => encerarComanda(mesaFechamento.local, mesaFechamento)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">
+                🏁 Confirmar Pagamento, Gravar Venda e Liberar Mesa
               </button>
             </div>
           </div>
@@ -1298,9 +990,7 @@ export default function App() {
       </div>
 
       <footer className="w-full text-center mt-10 pt-4 border-t border-slate-900/80">
-        <span className="text-[10px] text-slate-600 font-mono tracking-wider">
-          Era do Gelo Sistema • {VERSAO_SISTEMA}
-        </span>
+        <span className="text-[10px] text-slate-600 font-mono tracking-wider">Era do Gelo Sistema • {VERSAO_SISTEMA}</span>
       </footer>
     </div>
   );
