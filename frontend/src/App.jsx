@@ -14,6 +14,13 @@ const OPCOES_MOLHOS = [
   'Sem Molho'
 ];
 
+const FORMAS_PAGAMENTO = [
+  'Dinheiro',
+  'PIX',
+  'Cartão de Crédito',
+  'Cartão de Débito'
+];
+
 const CARDAPIO_INICIAL = [
   { id: 1, nome: 'Espetinho de Boi (Alcatra)', categoria: 'Espetinhos', preco: 12.00, descricao: 'Carne macia temperada na brasa' },
   { id: 2, nome: 'Espetinho de Frango com Bacon', categoria: 'Espetinhos', preco: 10.00, descricao: 'Frango suculento enrolado com bacon' },
@@ -80,7 +87,12 @@ export default function App() {
   const [pontoCarne, setPontoCarne] = useState('Ao ponto');
   const [molhosSelecionados, setMolhosSelecionados] = useState([]);
 
+  // Fechamento Avançado de Mesa
   const [mesaFechamento, setMesaFechamento] = useState(null);
+  const [tipoDivisao, setTipoDivisao] = useState('total'); // 'total', 'pessoa', 'itens'
+  const [qtdPessoas, setQtdPessoas] = useState(1);
+  const [itensSelecionadosFechamento, setItensSelecionadosFechamento] = useState({});
+  const [pagamentosMesa, setPagamentosMesa] = useState({}); // { 'PIX': 50.0, 'Dinheiro': 20.0 }
 
   useEffect(() => {
     socket.on('pedido_recebido', (novoPedido) => {
@@ -161,7 +173,7 @@ export default function App() {
     setNovoUsuario('');
     setNovoSenhaUser('');
     setNovoNomeUser('');
-    setMensagem('✅ Novo colaborador cadastrado com sucesso!');
+    setMensagem('✅ Novo colaborador cadastrado!');
     setTimeout(() => setMensagem(''), 3000);
   };
 
@@ -266,7 +278,7 @@ export default function App() {
         setTimeout(() => setMensagem(''), 4000);
         return;
       }
-      identificadorFinal = `Mesa ${numMesa}`;
+      identificadorFinal = `Mesa ${String(numMesa).padStart(2, '0')}`;
       numeroMesaFinal = String(numMesa).padStart(2, '0');
     } else {
       if (!identificacaoAvulsa || identificacaoAvulsa.trim() === '') {
@@ -303,7 +315,7 @@ export default function App() {
       atendente: usuarioLogado ? `${usuarioLogado.nome} (${usuarioLogado.tipo})` : 'Cliente (Autoatendimento)',
       itens: carrinho,
       total: totalCalculado,
-      status: 'Pendente', // Status inicial na cozinha
+      status: 'Pendente',
       horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -318,7 +330,8 @@ export default function App() {
   };
 
   const comandasAgrupadas = pedidos.reduce((acc, pedido) => {
-    const chave = pedido.local || `Mesa ${pedido.mesa}`;
+    // Agrupa sempre por Mesa XX ou Identificador Avulso
+    const chave = pedido.local || (pedido.mesa !== 'Avulso' ? `Mesa ${pedido.mesa}` : 'Avulso');
     if (!acc[chave]) {
       acc[chave] = {
         local: chave,
@@ -334,9 +347,11 @@ export default function App() {
   }, {});
 
   const encerarComanda = (localChave) => {
-    setPedidos((prev) => prev.filter((p) => (p.local || `Mesa ${p.mesa}`) !== localChave));
+    setPedidos((prev) => prev.filter((p) => (p.local || (p.mesa !== 'Avulso' ? `Mesa ${p.mesa}` : 'Avulso')) !== localChave));
     setMesaFechamento(null);
-    setMensagem(`🏁 Comanda ${localChave} fechada com sucesso!`);
+    setPagamentosMesa({});
+    setItensSelecionadosFechamento({});
+    setMensagem(`🏁 Comanda ${localChave} fechada e paga com sucesso!`);
     setTimeout(() => setMensagem(''), 4000);
   };
 
@@ -456,7 +471,7 @@ export default function App() {
           <section className="md:col-span-2 space-y-4">
             {mesaAlvoGarcom && (
               <div className="bg-cyan-500/20 border border-cyan-500 p-3 rounded-xl flex justify-between items-center text-xs">
-                <span className="font-bold text-cyan-300">🛎️ Lançando pedido direto para a **Mesa {mesaAlvoGarcom}** (Atendente: {usuarioLogado?.nome})</span>
+                <span className="font-bold text-cyan-300">🛎️ Lançando pedido para a **Mesa {mesaAlvoGarcom}** (Atendente: {usuarioLogado?.nome})</span>
                 <button onClick={() => setMesaAlvoGarcom(null)} className="text-rose-400 font-bold underline">Cancelar</button>
               </div>
             )}
@@ -593,7 +608,7 @@ export default function App() {
           <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
             <div>
               <h2 className="text-base font-bold text-slate-100">Mapa Visual do Salão</h2>
-              <p className="text-xs text-slate-400">Clique em uma mesa para lançar novos itens rapidamente.</p>
+              <p className="text-xs text-slate-400">Clique em uma mesa para lançar novos itens ou gerenciar a conta.</p>
             </div>
             <div className="flex items-center gap-4 text-xs font-bold">
               <span className="text-emerald-400">Livre: {TOTAL_MESAS_SALAO - totalMesasOcupadas}</span>
@@ -641,7 +656,7 @@ export default function App() {
       {/* COMANDAS */}
       {abaAtiva === 'comandas' && usuarioLogado && (
         <main className="max-w-4xl mx-auto space-y-4">
-          <h2 className="text-lg font-bold text-slate-100">Controle de Comandas Abertas</h2>
+          <h2 className="text-lg font-bold text-slate-100">Controle de Mesas & Comandas Abertas</h2>
           {Object.keys(comandasAgrupadas).length === 0 ? (
             <p className="text-slate-500 text-xs">Nenhuma comanda aberta no momento.</p>
           ) : (
@@ -652,13 +667,36 @@ export default function App() {
                     <div>
                       <span className="bg-cyan-500 text-slate-950 font-black px-2 py-0.5 rounded text-xs">{local}</span>
                       <span className="text-xs text-slate-300 font-bold ml-2">{info.cliente}</span>
+                      <span className="text-[10px] text-slate-500 block">📞 {info.celular}</span>
                     </div>
                     <div className="text-right">
                       <span className="text-xs font-black text-cyan-400 block">R$ {info.totalComanda.toFixed(2)}</span>
-                      <button onClick={() => setMesaFechamento(info)} className="mt-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-1 rounded text-[11px] font-bold">
-                        Fechar Comanda
+                      <button 
+                        onClick={() => { 
+                          setMesaFechamento(info); 
+                          setTipoDivisao('total'); 
+                          setQtdPessoas(1); 
+                          setPagamentosMesa({});
+                          setItensSelecionadosFechamento({});
+                        }} 
+                        className="mt-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2.5 py-1 rounded text-[11px] font-bold hover:bg-emerald-500 hover:text-slate-950 transition-all"
+                      >
+                        📊 Fechar Mesa
                       </button>
                     </div>
+                  </div>
+
+                  <div className="space-y-1 max-h-36 overflow-y-auto">
+                    {info.pedidos.map((p, idx) => (
+                      <div key={idx} className="text-[11px] text-slate-400 bg-slate-950 p-2 rounded">
+                        {p.itens.map((it, i) => (
+                          <div key={i} className="flex justify-between">
+                            <span>{it.quantidade}x {it.nome}</span>
+                            <span className="text-cyan-400">R$ {it.precoTotalItem.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -667,16 +705,12 @@ export default function App() {
         </main>
       )}
 
-      {/* COZINHA (COM CONFIRMAÇÃO DE PREPARO E ESTADO PRONTO) */}
+      {/* COZINHA */}
       {abaAtiva === 'cozinha' && usuarioLogado && (
         <main className="max-w-4xl mx-auto space-y-4">
-          <div className="bg-rose-950/20 border border-rose-500/30 p-4 rounded-xl flex justify-between items-center">
-            <div>
-              <h2 className="text-lg font-black text-rose-400">🔥 Painel da Cozinha (KDS)</h2>
-              <p className="text-xs text-slate-400">Confirme o preparo para notificar os garçons em tempo real.</p>
-            </div>
+          <div className="bg-rose-950/20 border border-rose-500/30 p-4 rounded-xl">
+            <h2 className="text-lg font-black text-rose-400">🔥 Painel da Cozinha (KDS)</h2>
           </div>
-
           {pedidos.length === 0 ? (
             <div className="bg-slate-900 p-8 rounded-xl border border-slate-800 text-center text-slate-500 text-sm">
               Nenhum pedido na cozinha no momento. 🧊
@@ -702,7 +736,7 @@ export default function App() {
                         statusAtual === 'Preparando' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                         'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                       }`}>
-                        {statusAtual === 'Pronto' ? '🟢 Pronto para Servir' : statusAtual === 'Preparando' ? '🟡 Preparando...' : '🔴 Pendente'}
+                        {statusAtual === 'Pronto' ? '🟢 Pronto' : statusAtual === 'Preparando' ? '🟡 Preparando' : '🔴 Pendente'}
                       </span>
                     </div>
 
@@ -716,7 +750,6 @@ export default function App() {
                       ))}
                     </ul>
 
-                    {/* Botões de Ação da Cozinha */}
                     <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
                       <button
                         onClick={() => atualizarStatusPedido(p.id, 'Preparando')}
@@ -726,9 +759,9 @@ export default function App() {
                       </button>
                       <button
                         onClick={() => atualizarStatusPedido(p.id, 'Pronto')}
-                        className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-lg text-xs transition-all shadow-lg shadow-emerald-500/10"
+                        className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2 rounded-lg text-xs transition-all shadow-lg"
                       >
-                        🔔 Pronto! (Notificar)
+                        🔔 Pronto!
                       </button>
                     </div>
                   </div>
@@ -823,7 +856,7 @@ export default function App() {
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-5">
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-              <h3 className="font-bold text-base text-cyan-400">Login de Funcionário (Garçom / Gestor / Admin)</h3>
+              <h3 className="font-bold text-base text-cyan-400">Login de Funcionário</h3>
               <button onClick={() => setModalLoginAberto(false)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
             </div>
 
@@ -896,23 +929,99 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL FECHAMENTO */}
+      {/* TELA DE FECHAMENTO DE CONTA AVANÇADA */}
       {mesaFechamento && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 space-y-4 shadow-2xl">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
               <div>
-                <h3 className="font-bold text-base text-cyan-400">Fechamento de Conta</h3>
-                <p className="text-xs text-slate-400">{mesaFechamento.local} - {mesaFechamento.cliente}</p>
+                <h3 className="font-bold text-base text-cyan-400">Fechamento de Conta ({mesaFechamento.local})</h3>
+                <p className="text-xs text-slate-400">Cliente: {mesaFechamento.cliente}</p>
               </div>
               <button onClick={() => setMesaFechamento(null)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
             </div>
-            <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-slate-800">
-              <span className="text-slate-400">Total:</span>
-              <span className="text-lg font-black text-cyan-400">R$ {mesaFechamento.totalComanda.toFixed(2)}</span>
+
+            {/* Opções de Divisão */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-300">Modo de Fechamento:</span>
+              <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                <button onClick={() => setTipoDivisao('total')} className={`py-2 font-bold rounded-lg ${tipoDivisao === 'total' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Total</button>
+                <button onClick={() => setTipoDivisao('pessoa')} className={`py-2 font-bold rounded-lg ${tipoDivisao === 'pessoa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Por Pessoa</button>
+                <button onClick={() => setTipoDivisao('itens')} className={`py-2 font-bold rounded-lg ${tipoDivisao === 'itens' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Selecionar Itens</button>
+              </div>
             </div>
-            <button onClick={() => encerarComanda(mesaFechamento.local)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">
-              🏁 Receber Pagamento e Liberar
+
+            {/* Listagem de Itens / Divisões */}
+            {tipoDivisao === 'itens' && (
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                <span className="text-xs font-bold text-slate-300 block">Selecione os itens a serem pagos agora:</span>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                  {mesaFechamento.pedidos.flatMap((p) => p.itens).map((it, idx) => {
+                    const chaveItem = `${idx}-${it.nome}`;
+                    const marcado = Boolean(itensSelecionadosFechamento[chaveItem]);
+                    return (
+                      <div 
+                        key={idx} 
+                        onClick={() => setItensSelecionadosFechamento(prev => ({ ...prev, [chaveItem]: !prev[chaveItem] }))}
+                        className={`flex justify-between items-center p-2 rounded-lg border text-xs cursor-pointer ${marcado ? 'bg-cyan-500/10 border-cyan-500 text-cyan-300' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
+                      >
+                        <span>{it.quantidade}x {it.nome}</span>
+                        <span className="font-bold">R$ {it.precoTotalItem.toFixed(2)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {tipoDivisao === 'pessoa' && (
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-300">Dividir total por quantas pessoas?</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setQtdPessoas(q => Math.max(1, q - 1))} className="bg-slate-800 px-2.5 py-1 rounded font-bold">-</button>
+                  <span className="font-bold text-cyan-400 text-sm">{qtdPessoas}</span>
+                  <button onClick={() => setQtdPessoas(q => q + 1)} className="bg-slate-800 px-2.5 py-1 rounded font-bold">+</button>
+                </div>
+              </div>
+            )}
+
+            {/* Cálculo do Valor a Pagar */}
+            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+              <span className="text-xs font-bold text-slate-400">Valor a Pagar:</span>
+              <span className="text-xl font-black text-emerald-400">
+                R$ {
+                  tipoDivisao === 'pessoa' ? (mesaFechamento.totalComanda / qtdPessoas).toFixed(2) :
+                  tipoDivisao === 'itens' ? mesaFechamento.pedidos.flatMap((p) => p.itens).reduce((acc, it, idx) => itensSelecionadosFechamento[`${idx}-${it.nome}`] ? acc + it.precoTotalItem : acc, 0).toFixed(2) :
+                  mesaFechamento.totalComanda.toFixed(2)
+                }
+              </span>
+            </div>
+
+            {/* Formas de Pagamento Múltiplas */}
+            <div className="space-y-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <span className="text-xs font-bold text-slate-300 block">Formas de Pagamento (Dividir entre as formas):</span>
+              <div className="grid grid-cols-2 gap-2">
+                {FORMAS_PAGAMENTO.map((forma) => (
+                  <div key={forma} className="bg-slate-900 p-2 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
+                    <span>{forma}</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="R$ 0,00"
+                      value={pagamentosMesa[forma] || ''}
+                      onChange={(e) => setPagamentosMesa(prev => ({ ...prev, [forma]: Number(e.target.value) }))}
+                      className="w-20 bg-slate-950 border border-slate-800 p-1 rounded text-cyan-400 font-bold text-right"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button 
+              onClick={() => encerarComanda(mesaFechamento.local)} 
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg transition-all"
+            >
+              🏁 Confirmar Pagamento e Liberar Mesa
             </button>
           </div>
         </div>
