@@ -62,6 +62,7 @@ export default function App() {
   const [cardapio, setCardapio] = useState(CARDAPIO_INICIAL);
   const [carrinho, setCarrinho] = useState([]);
   const [pedidos, setPedidos] = useState([]);
+  const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
 
   const [mesaAlvoGarcom, setMesaAlvoGarcom] = useState(null);
 
@@ -87,16 +88,25 @@ export default function App() {
   const [pontoCarne, setPontoCarne] = useState('Ao ponto');
   const [molhosSelecionados, setMolhosSelecionados] = useState([]);
 
-  // Fechamento Avançado de Mesa
   const [mesaFechamento, setMesaFechamento] = useState(null);
-  const [tipoDivisao, setTipoDivisao] = useState('total'); // 'total', 'pessoa', 'itens'
+  const [tipoDivisao, setTipoDivisao] = useState('total');
   const [qtdPessoas, setQtdPessoas] = useState(1);
   const [itensSelecionadosFechamento, setItensSelecionadosFechamento] = useState({});
-  const [pagamentosMesa, setPagamentosMesa] = useState({}); // { 'PIX': 50.0, 'Dinheiro': 20.0 }
+  const [pagamentosMesa, setPagamentosMesa] = useState({});
 
   useEffect(() => {
     socket.on('pedido_recebido', (novoPedido) => {
       setPedidos((prev) => [novoPedido, ...prev]);
+      
+      setNovoPedidoAlerta(novoPedido);
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.play().catch(() => {});
+      } catch (e) {}
+
+      setTimeout(() => {
+        setNovoPedidoAlerta(null);
+      }, 8000);
     });
 
     socket.on('status_pedido_atualizado', ({ idPedido, status }) => {
@@ -263,7 +273,7 @@ export default function App() {
     setItemSelecionado(null);
   };
 
-const enviarPedido = () => {
+  const enviarPedido = () => {
     if (carrinho.length === 0) return;
 
     let identificadorFinal = '';
@@ -324,50 +334,20 @@ const enviarPedido = () => {
     socket.emit('novo_pedido', pedidoObjeto);
     setPedidos((prev) => [pedidoObjeto, ...prev]);
 
-    setCarrinho ലേഖ(  // Limpa carrinho
-      setCarrinho([])
-    );
+    setCarrinho([]);
     setMesaAlvoGarcom(null);
     setMensagem(`✅ Pedido enviado com sucesso para ${identificadorFinal}!`);
     setTimeout(() => setMensagem(''), 4000);
   };
-    if (!nomeCliente || nomeCliente.trim() === '') {
-      setMensagem('⚠️ Informe o NOME!');
-      setTimeout(() => setMensagem(''), 4000);
-      return;
-    }
-
-    setClientesSalvos((prev) => ({ ...prev, [celularCliente]: nomeCliente }));
-
-    const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
-
-    const pedidoObjeto = {
-      id: Date.now(),
-      local: identificadorFinal,
-      tipo: mesaAlvoGarcom ? 'mesa' : tipoAtendimento,
-      mesa: numeroMesaFinal,
-      cliente: nomeCliente,
-      celular: celularCliente,
-      atendente: usuarioLogado ? `${usuarioLogado.nome} (${usuarioLogado.tipo})` : 'Cliente (Autoatendimento)',
-      itens: carrinho,
-      total: totalCalculado,
-      status: 'Pendente',
-      horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    };
-
-    socket.emit('novo_pedido', pedidoObjeto);
-    setPedidos((prev) => [pedidoObjeto, ...prev]);
-
-    setCarrinho([]);
-    setMesaAlvoGarcom(null);
-    setMensagem(`✅ Pedido lançado com sucesso para ${identificadorFinal}!`);
-    setTimeout(() => setMensagem(''), 4000);
-    setAbaAtiva(usuarioLogado ? 'salao' : 'cardapio');
-  };
 
   const comandasAgrupadas = pedidos.reduce((acc, pedido) => {
-    // Agrupa sempre por Mesa XX ou Identificador Avulso
-    const chave = pedido.local || (pedido.mesa !== 'Avulso' ? `Mesa ${pedido.mesa}` : 'Avulso');
+    let chave = pedido.local;
+    if (!chave && pedido.mesa && pedido.mesa !== 'Avulso') {
+      chave = `Mesa ${String(pedido.mesa).padStart(2, '0')}`;
+    } else if (!chave) {
+      chave = 'Avulso';
+    }
+
     if (!acc[chave]) {
       acc[chave] = {
         local: chave,
@@ -383,7 +363,15 @@ const enviarPedido = () => {
   }, {});
 
   const encerarComanda = (localChave) => {
-    setPedidos((prev) => prev.filter((p) => (p.local || (p.mesa !== 'Avulso' ? `Mesa ${p.mesa}` : 'Avulso')) !== localChave));
+    setPedidos((prev) => prev.filter((p) => {
+      let chave = p.local;
+      if (!chave && p.mesa && p.mesa !== 'Avulso') {
+        chave = `Mesa ${String(p.mesa).padStart(2, '0')}`;
+      } else if (!chave) {
+        chave = 'Avulso';
+      }
+      return chave !== localChave;
+    }));
     setMesaFechamento(null);
     setPagamentosMesa({});
     setItensSelecionadosFechamento({});
@@ -495,19 +483,36 @@ const enviarPedido = () => {
         </div>
       </header>
 
+      {novoPedidoAlerta && (
+        <div className="max-w-4xl mx-auto mb-4 p-4 bg-amber-500/20 border-2 border-amber-500 text-amber-300 rounded-2xl flex justify-between items-center animate-bounce shadow-2xl">
+          <div>
+            <span className="font-black text-sm block">🚨 NOVO PEDIDO CHEGOU! ({novoPedidoAlerta.local})</span>
+            <span className="text-xs text-amber-200">Cliente: {novoPedidoAlerta.cliente} • Atendente: {novoPedidoAlerta.atendente}</span>
+          </div>
+          <button
+            onClick={() => {
+              setAbaAtiva('cozinha');
+              setNovoPedidoAlerta(null);
+            }}
+            className="bg-amber-500 text-slate-950 font-black px-3 py-2 rounded-xl text-xs shadow-lg hover:bg-amber-400"
+          >
+            Ver na Cozinha 👀
+          </button>
+        </div>
+      )}
+
       {mensagem && (
         <div className="max-w-4xl mx-auto mb-4 p-3 bg-cyan-500/20 border border-cyan-500 text-cyan-300 rounded-xl text-xs font-bold text-center">
           {mensagem}
         </div>
       )}
 
-      {/* CARDÁPIO */}
       {abaAtiva === 'cardapio' && (
         <main className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
           <section className="md:col-span-2 space-y-4">
             {mesaAlvoGarcom && (
               <div className="bg-cyan-500/20 border border-cyan-500 p-3 rounded-xl flex justify-between items-center text-xs">
-                <span className="font-bold text-cyan-300">🛎️ Lançando pedido para a **Mesa {mesaAlvoGarcom}** (Atendente: {usuarioLogado?.nome})</span>
+                <span className="font-bold text-cyan-300">🛎️ Lançando pedido para a <strong>Mesa {mesaAlvoGarcom}</strong> (Atendente: {usuarioLogado?.nome})</span>
                 <button onClick={() => setMesaAlvoGarcom(null)} className="text-rose-400 font-bold underline">Cancelar</button>
               </div>
             )}
@@ -638,7 +643,6 @@ const enviarPedido = () => {
         </main>
       )}
 
-      {/* SALÃO */}
       {abaAtiva === 'salao' && usuarioLogado && (
         <main className="max-w-4xl mx-auto space-y-4">
           <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
@@ -689,7 +693,6 @@ const enviarPedido = () => {
         </main>
       )}
 
-      {/* COMANDAS */}
       {abaAtiva === 'comandas' && usuarioLogado && (
         <main className="max-w-4xl mx-auto space-y-4">
           <h2 className="text-lg font-bold text-slate-100">Controle de Mesas & Comandas Abertas</h2>
@@ -741,7 +744,6 @@ const enviarPedido = () => {
         </main>
       )}
 
-      {/* COZINHA */}
       {abaAtiva === 'cozinha' && usuarioLogado && (
         <main className="max-w-4xl mx-auto space-y-4">
           <div className="bg-rose-950/20 border border-rose-500/30 p-4 rounded-xl">
@@ -808,7 +810,6 @@ const enviarPedido = () => {
         </main>
       )}
 
-      {/* GERENCIAR CARDÁPIO */}
       {abaAtiva === 'gerenciar_cardapio' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
         <main className="max-w-4xl mx-auto space-y-5">
           <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
@@ -845,7 +846,6 @@ const enviarPedido = () => {
         </main>
       )}
 
-      {/* GERENCIAR USUÁRIOS */}
       {abaAtiva === 'gerenciar_usuarios' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
         <main className="max-w-4xl mx-auto space-y-5">
           <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
@@ -887,7 +887,6 @@ const enviarPedido = () => {
         </main>
       )}
 
-      {/* MODAL DE LOGIN */}
       {modalLoginAberto && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-5">
@@ -917,7 +916,6 @@ const enviarPedido = () => {
         </div>
       )}
 
-      {/* MODAL CUSTOMIZAÇÃO DE ITEM */}
       {itemSelecionado && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 space-y-4 shadow-2xl">
@@ -965,7 +963,6 @@ const enviarPedido = () => {
         </div>
       )}
 
-      {/* TELA DE FECHAMENTO DE CONTA AVANÇADA */}
       {mesaFechamento && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -977,7 +974,6 @@ const enviarPedido = () => {
               <button onClick={() => setMesaFechamento(null)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
             </div>
 
-            {/* Opções de Divisão */}
             <div className="space-y-2">
               <span className="text-xs font-bold text-slate-300">Modo de Fechamento:</span>
               <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
@@ -987,7 +983,6 @@ const enviarPedido = () => {
               </div>
             </div>
 
-            {/* Listagem de Itens / Divisões */}
             {tipoDivisao === 'itens' && (
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
                 <span className="text-xs font-bold text-slate-300 block">Selecione os itens a serem pagos agora:</span>
@@ -1021,7 +1016,6 @@ const enviarPedido = () => {
               </div>
             )}
 
-            {/* Cálculo do Valor a Pagar */}
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
               <span className="text-xs font-bold text-slate-400">Valor a Pagar:</span>
               <span className="text-xl font-black text-emerald-400">
@@ -1033,7 +1027,6 @@ const enviarPedido = () => {
               </span>
             </div>
 
-            {/* Formas de Pagamento Múltiplas */}
             <div className="space-y-2 bg-slate-950 p-3 rounded-xl border border-slate-800">
               <span className="text-xs font-bold text-slate-300 block">Formas de Pagamento (Dividir entre as formas):</span>
               <div className="grid grid-cols-2 gap-2">
