@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 
 // Substitua pela URL exata do seu backend no Render
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
