@@ -417,54 +417,54 @@ export default function App() {
     return v.dataIso >= dataInicioFiltro && v.dataIso <= dataFimFiltro;
   });
   const faturamentoPeriodo = vendasFiltradasPorPeriodo.reduce((acc, v) => acc + v.total, 0);
-
-  /**
+/**
    * ============================================================================
-   * PACOTE 10: RENDERIZAÇÃO DA INTERFACE (JSX)
+   * PACOTE 10.1: RENDERIZAÇÃO DO MODAL DE LOGIN DISCRETO
    * ============================================================================
    */
   {modalLoginAberto && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md space-y-5 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <h3 className="font-bold text-base text-cyan-400">Login Funcionário (Banco de Dados)</h3>
-                <button onClick={() => setModalLoginAberto(false)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
-              </div>
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 z-50">
+      <div className="bg-slate-900 border border-slate-800/80 p-5 rounded-2xl w-full max-w-xs space-y-4 shadow-2xl">
+        <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+          <h3 className="font-semibold text-xs text-slate-300 tracking-wider">ACESSO RESTRITO</h3>
+          <button onClick={() => setModalLoginAberto(false)} className="text-slate-500 hover:text-slate-300 text-xs font-bold">✕</button>
+        </div>
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300">Selecione o Usuário:</label>
-                  <select 
-                    value={inputUsuario} 
-                    onChange={(e) => setInputUsuario(e.target.value)} 
-                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
-                  >
-                    <option value="">-- Escolha um Colaborador Cadastrado --</option>
-                    {listaUsuarios.map((u) => (
-                      <option key={u.usuario} value={u.usuario}>
-                        {u.nome} ({u.usuario}) — [{u.tipo.toUpperCase()}]
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-300">Digite a Senha:</label>
-                  <input 
-                    type="password" 
-                    placeholder="Digite sua senha" 
-                    value={inputSenha} 
-                    onChange={(e) => setInputSenha(e.target.value)} 
-                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white" 
-                  />
-                </div>
-
-                {erroLogin && <p className="text-xs font-bold text-rose-400 text-center">{erroLogin}</p>}
-
-                <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg transition-all">
-                  Entrar no Sistema
-                </button>
-              </form>
-            </div>
+        <form onSubmit={handleLogin} className="space-y-3">
+          <div className="space-y-1">
+            <select 
+              value={inputUsuario} 
+              onChange={(e) => setInputUsuario(e.target.value)} 
+              className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-cyan-500"
+            >
+              <option value="">Selecione o usuário...</option>
+              {/* Opção padrão de Administrador */}
+              <option value="admin">Administrador Geral</option>
+              {/* Demais usuários puxados do banco de dados */}
+              {listaUsuarios.filter(u => u.usuario !== 'admin').map((u) => (
+                <option key={u.usuario} value={u.usuario}>
+                  {u.nome} ({u.tipo})
+                </option>
+              ))}
+            </select>
           </div>
-        )}
+
+          <div className="space-y-1">
+            <input 
+              type="password" 
+              placeholder="Senha" 
+              value={inputSenha} 
+              onChange={(e) => setInputSenha(e.target.value)} 
+              className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-cyan-500" 
+            />
+          </div>
+
+          {erroLogin && <p className="text-[11px] font-medium text-rose-400 text-center">{erroLogin}</p>}
+
+          <button type="submit" className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 rounded-lg text-xs transition-all border border-slate-700">
+            Entrar
+          </button>
+        </form>
+      </div>
+    </div>
+  )}
