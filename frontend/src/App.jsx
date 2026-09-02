@@ -14,12 +14,37 @@ const OPCOES_MOLHOS = [
   'Sem Molho'
 ];
 
+const CARDAPIO_INICIAL = [
+  { id: 1, nome: 'Espetinho de Boi (Alcatra)', categoria: 'Espetinhos', preco: 12.00, descricao: 'Carne macia temperada na brasa' },
+  { id: 2, nome: 'Espetinho de Frango com Bacon', categoria: 'Espetinhos', preco: 10.00, descricao: 'Frango suculento enrolado com bacon crocante' },
+  { id: 3, nome: 'Espetinho de Coração', categoria: 'Espetinhos', preco: 11.00, descricao: 'Coraçãozinho temperado no capricho' },
+  { id: 4, nome: 'Espetinho de Queijo Coalho', categoria: 'Espetinhos', preco: 12.00, descricao: 'Queijo coalho tostado na brasa' },
+  { id: 5, nome: 'Cerveja Lata 350ml', categoria: 'Bebidas', preco: 6.00, descricao: 'Gelada' },
+  { id: 6, nome: 'Refrigerante Lata 350ml', categoria: 'Bebidas', preco: 5.00, descricao: 'Coca-Cola, Guaraná, Sprite' },
+  { id: 7, nome: 'Água Mineral', categoria: 'Bebidas', preco: 4.00, descricao: 'Garrafa 500ml' },
+  { id: 8, nome: 'Porção de Fritas', categoria: 'Porções', preco: 30.00, descricao: 'Acompanha molho da casa' },
+  { id: 9, nome: 'Porção de Mandioca Frita', categoria: 'Porções', preco: 28.00, descricao: 'Bem crocante' }
+];
+
 export default function App() {
+  // Controle de Autenticação / Usuários
+  const [usuarioLogado, setUsuarioLogado] = useState(null); // { nome, tipo: 'adm' | 'gestor' | 'garcom' }
+  const [inputUsuario, setInputUsuario] = useState('');
+  const [inputSenha, setInputSenha] = useState('');
+  const [tipoSelecionado, setTipoSelecionado] = useState('garcom');
+  const [erroLogin, setErroLogin] = useState('');
+
   const [abaAtiva, setAbaAtiva] = useState('salao');
   const [categoriaSel, setCategoriaSel] = useState('Todas');
-  const [cardapio, setCardapio] = useState([]);
+  const [cardapio, setCardapio] = useState(CARDAPIO_INICIAL);
   const [carrinho, setCarrinho] = useState([]);
   const [pedidos, setPedidos] = useState([]);
+
+  // Novo Item no Cardápio (Gestor / Adm)
+  const [novoNomeItem, setNovoNomeItem] = useState('');
+  const [novaCategoriaItem, setNovaCategoriaItem] = useState('Espetinhos');
+  const [novoPrecoItem, setNovoPrecoItem] = useState('');
+  const [novaDescItem, setNovaDescItem] = useState('');
 
   const [clientesSalvos, setClientesSalvos] = useState(() => {
     const dados = localStorage.getItem('eradogelo_clientes');
@@ -37,35 +62,88 @@ export default function App() {
   const [quantidadeModal, setQuantidadeModal] = useState(1);
   const [pontoCarne, setPontoCarne] = useState('Ao ponto');
   const [molhosSelecionados, setMolhosSelecionados] = useState([]);
-  const [observacao, setObservacao] = useState('');
 
   const [mesaFechamento, setMesaFechamento] = useState(null);
   const [tipoDivisao, setTipoDivisao] = useState('pessoa');
   const [qtdPessoas, setQtdPessoas] = useState(1);
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/cardapio`)
-      .then((res) => res.json())
-      .then((dados) => setCardapio(dados))
-      .catch((err) => console.error(err));
-
     socket.on('pedido_recebido', (novoPedido) => {
       setPedidos((prev) => [novoPedido, ...prev]);
     });
 
-    socket.on('cardapio_atualizado', (novoCardapio) => {
-      setCardapio(novoCardapio);
-    });
-
     return () => {
       socket.off('pedido_recebido');
-      socket.off('cardapio_atualizado');
     };
   }, []);
 
   useEffect(() => {
     localStorage.setItem('eradogelo_clientes', JSON.stringify(clientesSalvos));
   }, [clientesSalvos]);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setErroLogin('');
+
+    if (tipoSelecionado === 'adm') {
+      if (inputSenha !== '@adm123') {
+        setErroLogin('❌ Senha de Administrador incorreta! (Use @adm123)');
+        return;
+      }
+      setUsuarioLogado({ nome: inputUsuario || 'Administrador', tipo: 'adm' });
+      setAbaAtiva('salao');
+    } else if (tipoSelecionado === 'gestor') {
+      if (!inputUsuario.trim()) {
+        setErroLogin('❌ Informe o nome do Gestor.');
+        return;
+      }
+      setUsuarioLogado({ nome: inputUsuario, tipo: 'gestor' });
+      setAbaAtiva('salao');
+    } else {
+      if (!inputUsuario.trim()) {
+        setErroLogin('❌ Informe o nome do Garçom.');
+        return;
+      }
+      setUsuarioLogado({ nome: inputUsuario, tipo: 'garcom' });
+      setAbaAtiva('salao');
+    }
+  };
+
+  const handleLogout = () => {
+    setUsuarioLogado(null);
+    setInputSenha('');
+    setInputUsuario('');
+  };
+
+  const adicionarItemCardapio = (e) => {
+    e.preventDefault();
+    if (!novoNomeItem || !novoPrecoItem) {
+      setMensagem('⚠️ Preencha nome e preço do item!');
+      setTimeout(() => setMensagem(''), 3000);
+      return;
+    }
+
+    const novo = {
+      id: Date.now(),
+      nome: novoNomeItem,
+      categoria: novaCategoriaItem,
+      preco: Number(novoPrecoItem),
+      descricao: novaDescItem
+    };
+
+    setCardapio((prev) => [...prev, novo]);
+    setNovoNomeItem('');
+    setNovoPrecoItem('');
+    setNovaDescItem('');
+    setMensagem('✅ Item adicionado ao cardápio com sucesso!');
+    setTimeout(() => setMensagem(''), 3000);
+  };
+
+  const removerItemCardapio = (id) => {
+    setCardapio((prev) => prev.filter((i) => i.id !== id));
+    setMensagem('🗑️ Item removido do cardápio.');
+    setTimeout(() => setMensagem(''), 3000);
+  };
 
   const handleCelularChange = (e) => {
     const tel = e.target.value;
@@ -82,7 +160,6 @@ export default function App() {
     setQuantidadeModal(1);
     setPontoCarne('Ao ponto');
     setMolhosSelecionados([]);
-    setObservacao('');
   };
 
   const alternarMolho = (molho) => {
@@ -106,7 +183,6 @@ export default function App() {
       quantidade: quantidadeModal,
       ponto: itemSelecionado.categoria === 'Espetinhos' ? pontoCarne : null,
       molhos: molhosSelecionados,
-      obs: observacao,
       precoTotalItem: itemSelecionado.preco * quantidadeModal
     };
 
@@ -118,7 +194,6 @@ export default function App() {
     if (carrinho.length === 0) return;
 
     let identificadorFinal = '';
-
     if (tipoAtendimento === 'mesa') {
       if (!numMesa || numMesa.trim() === '') {
         setMensagem('⚠️ Informe o NÚMERO DA MESA!');
@@ -147,26 +222,28 @@ export default function App() {
       return;
     }
 
-    setClientesSalvos((prev) => ({
-      ...prev,
-      [celularCliente]: nomeCliente
-    }));
+    setClientesSalvos((prev) => ({ ...prev, [celularCliente]: nomeCliente }));
 
     const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
 
-    socket.emit('novo_pedido', {
+    const pedidoObjeto = {
+      id: Date.now(),
       local: identificadorFinal,
       tipo: tipoAtendimento,
       mesa: tipoAtendimento === 'mesa' ? String(numMesa).padStart(2, '0') : 'Avulso',
       cliente: nomeCliente,
       celular: celularCliente,
+      atendente: usuarioLogado.nome,
       itens: carrinho,
       total: totalCalculado,
       horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    });
+    };
+
+    socket.emit('novo_pedido', pedidoObjeto);
+    setPedidos((prev) => [pedidoObjeto, ...prev]);
 
     setCarrinho([]);
-    setMensagem(`✅ Pedido adicionado para ${identificadorFinal}!`);
+    setMensagem(`✅ Pedido lançado para ${identificadorFinal}!`);
     setTimeout(() => setMensagem(''), 4000);
   };
 
@@ -189,7 +266,7 @@ export default function App() {
   const encerarComanda = (localChave) => {
     setPedidos((prev) => prev.filter((p) => (p.local || `Mesa ${p.mesa}`) !== localChave));
     setMesaFechamento(null);
-    setMensagem(`🏁 Comanda ${localChave} fechada e liberada com sucesso!`);
+    setMensagem(`🏁 Comanda ${localChave} fechada com sucesso!`);
     setTimeout(() => setMensagem(''), 4000);
   };
 
@@ -204,32 +281,100 @@ export default function App() {
       setQtdPessoas(1);
     } else {
       setAbaAtiva('cardapio');
-      setMensagem(`🪑 Mesa ${numFormatado} selecionada! Adicione os itens no cardápio.`);
+      setMensagem(`🪑 Mesa ${numFormatado} selecionada! Escolha os itens no cardápio.`);
       setTimeout(() => setMensagem(''), 3000);
     }
   };
 
-  const total = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
-
-  const cardapioFiltrado =
-    categoriaSel === 'Todas'
-      ? cardapio
-      : cardapio.filter((i) => i.categoria === categoriaSel);
+  const totalCarrinho = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
+  const cardapioFiltrado = categoriaSel === 'Todas' ? cardapio : cardapio.filter((i) => i.categoria === categoriaSel);
 
   const listaMesas = Array.from({ length: TOTAL_MESAS_SALAO }, (_, i) => {
     const num = String(i + 1).padStart(2, '0');
     const chave = `Mesa ${num}`;
     const ocupada = Boolean(comandasAgrupadas[chave]);
-    return {
-      numero: num,
-      chave,
-      ocupada,
-      dados: comandasAgrupadas[chave] || null
-    };
+    return { numero: num, chave, ocupada, dados: comandasAgrupadas[chave] || null };
   });
 
   const totalMesasOcupadas = listaMesas.filter((m) => m.ocupada).length;
 
+  // TELA DE LOGIN
+  if (!usuarioLogado) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-5">
+          <div className="text-center space-y-1">
+            <h1 className="text-2xl font-black text-cyan-400">Era do Gelo 🧊⚡</h1>
+            <p className="text-xs text-slate-400">Entre com seu perfil para acessar o sistema</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">Tipo de Acesso:</label>
+              <div className="grid grid-cols-3 gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTipoSelecionado('garcom')}
+                  className={`py-2 font-bold rounded-lg transition-all ${tipoSelecionado === 'garcom' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
+                >
+                  Garçom
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoSelecionado('gestor')}
+                  className={`py-2 font-bold rounded-lg transition-all ${tipoSelecionado === 'gestor' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
+                >
+                  Gestor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoSelecionado('adm')}
+                  className={`py-2 font-bold rounded-lg transition-all ${tipoSelecionado === 'adm' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
+                >
+                  Admin
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">Nome do Usuário:</label>
+              <input
+                type="text"
+                placeholder={tipoSelecionado === 'adm' ? "Nome do Administrador" : tipoSelecionado === 'gestor' ? "Nome do Gestor" : "Seu Nome (Garçom)"}
+                value={inputUsuario}
+                onChange={(e) => setInputUsuario(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm font-semibold text-white focus:outline-none focus:border-cyan-500"
+              />
+            </div>
+
+            {tipoSelecionado === 'adm' && (
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Senha de Administrador:</label>
+                <input
+                  type="password"
+                  placeholder="Digite @adm123"
+                  value={inputSenha}
+                  onChange={(e) => setInputSenha(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm font-semibold text-cyan-400 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            )}
+
+            {erroLogin && <p className="text-xs font-bold text-rose-400 text-center">{erroLogin}</p>}
+
+            <button
+              type="submit"
+              className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs transition-all shadow-lg shadow-cyan-500/10"
+            >
+              Entrar no Sistema
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // TELA PRINCIPAL DO SISTEMA
   return (
     <div className="min-h-screen bg-slate-950 text-white p-3 md:p-6 pb-24 font-sans">
       <header className="max-w-4xl mx-auto bg-slate-900 p-4 rounded-2xl border border-slate-800 mb-5 shadow-xl">
@@ -237,48 +382,59 @@ export default function App() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black text-cyan-400 tracking-tight">Era do Gelo 🧊⚡</h1>
-              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                • SALÃO ABERTO
+              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                • {usuarioLogado.tipo}: {usuarioLogado.nome}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">Painel de Controle, Mesas & Comandas</p>
+            <p className="text-xs text-slate-400 mt-0.5">Painel Operacional Integrado</p>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
             <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 flex-wrap gap-1">
               <button
                 onClick={() => setAbaAtiva('salao')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  abaAtiva === 'salao' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'salao' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
               >
-                🪑 Salão ({totalMesasOcupadas}/{TOTAL_MESAS_SALAO})
+                🪑 Salão ({totalMesasOcupadas})
               </button>
               <button
                 onClick={() => setAbaAtiva('cardapio')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  abaAtiva === 'cardapio' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cardapio' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
               >
                 📋 Cardápio
               </button>
               <button
                 onClick={() => setAbaAtiva('comandas')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  abaAtiva === 'comandas' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'comandas' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
               >
-                💳 Comandas ({Object.keys(comandasAgrupadas).length})
+                💳 Comandas
               </button>
+
+              {/* ABA COZINHA SEPARADA */}
               <button
                 onClick={() => setAbaAtiva('cozinha')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  abaAtiva === 'cozinha' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cozinha' ? 'bg-rose-500 text-slate-950' : 'text-rose-400'}`}
               >
                 🔥 Cozinha ({pedidos.length})
               </button>
+
+              {/* ABA GERENCIAMENTO DE CARDÁPIO (Apenas Gestor/Adm) */}
+              {(usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
+                <button
+                  onClick={() => setAbaAtiva('gerenciar')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'gerenciar' ? 'bg-emerald-500 text-slate-950' : 'text-emerald-400'}`}
+                >
+                  ⚙️ Gerenciar Cardápio
+                </button>
+              )}
             </div>
+
+            <button
+              onClick={handleLogout}
+              className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-rose-500 hover:text-white transition-all"
+            >
+              Sair
+            </button>
           </div>
         </div>
       </header>
@@ -289,23 +445,17 @@ export default function App() {
         </div>
       )}
 
+      {/* ABA 1: SALÃO / MAPA DE MESAS */}
       {abaAtiva === 'salao' && (
         <main className="max-w-4xl mx-auto space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-900 p-4 rounded-xl border border-slate-800 gap-2">
+          <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
             <div>
               <h2 className="text-base font-bold text-slate-100">Mapa Visual do Salão</h2>
-              <p className="text-xs text-slate-400">Clique na mesa para abrir atendimento ou gerenciar a conta.</p>
+              <p className="text-xs text-slate-400">Clique na mesa para abrir atendimento ou lançar itens.</p>
             </div>
-
             <div className="flex items-center gap-4 text-xs font-bold">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-                <span className="text-emerald-400">Livre ({TOTAL_MESAS_SALAO - totalMesasOcupadas})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
-                <span className="text-rose-400">Ocupada ({totalMesasOcupadas})</span>
-              </div>
+              <span className="text-emerald-400">Livre: {TOTAL_MESAS_SALAO - totalMesasOcupadas}</span>
+              <span className="text-rose-400">Ocupada: {totalMesasOcupadas}</span>
             </div>
           </div>
 
@@ -315,38 +465,26 @@ export default function App() {
                 key={m.numero}
                 onClick={() => selecionarMesaSalao(m.numero)}
                 className={`p-4 rounded-2xl border text-left flex flex-col justify-between h-32 transition-all transform hover:-translate-y-1 shadow-lg ${
-                  m.ocupada
-                    ? 'bg-rose-950/40 border-rose-500/50 hover:border-rose-400'
-                    : 'bg-slate-900 border-slate-800 hover:border-emerald-500/60'
+                  m.ocupada ? 'bg-rose-950/40 border-rose-500/50' : 'bg-slate-900 border-slate-800 hover:border-emerald-500/60'
                 }`}
               >
                 <div className="flex justify-between items-center w-full">
-                  <span className="text-xs font-black text-slate-400 uppercase tracking-wider">
-                    Mesa
-                  </span>
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      m.ocupada
-                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    }`}
-                  >
+                  <span className="text-xs font-black text-slate-400 uppercase">Mesa</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${m.ocupada ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
                     {m.ocupada ? '• OCUPADA' : '• LIVRE'}
                   </span>
                 </div>
-
                 <div className="my-1">
                   <span className="text-3xl font-black text-slate-100">{m.numero}</span>
                 </div>
-
                 {m.ocupada ? (
                   <div className="text-[11px] border-t border-rose-500/20 pt-1.5 truncate">
                     <p className="font-bold text-slate-200 truncate">{m.dados.cliente}</p>
                     <p className="text-rose-400 font-black">R$ {m.dados.totalComanda.toFixed(2)}</p>
                   </div>
                 ) : (
-                  <div className="text-[10px] text-emerald-400 font-bold border-t border-slate-800/80 pt-1.5 flex items-center gap-1">
-                    <span>+ Abrir Mesa</span>
+                  <div className="text-[10px] text-emerald-400 font-bold border-t border-slate-800/80 pt-1.5">
+                    + Abrir Mesa
                   </div>
                 )}
               </button>
@@ -355,6 +493,7 @@ export default function App() {
         </main>
       )}
 
+      {/* ABA 2: CARDÁPIO E PEDIDOS */}
       {abaAtiva === 'cardapio' && (
         <main className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
           <section className="md:col-span-2 space-y-4">
@@ -363,10 +502,8 @@ export default function App() {
                 <button
                   key={cat}
                   onClick={() => setCategoriaSel(cat)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-                    categoriaSel === cat
-                      ? 'bg-cyan-500 text-slate-950 border-cyan-500 shadow-lg shadow-cyan-500/10'
-                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                  className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
+                    categoriaSel === cat ? 'bg-cyan-500 text-slate-950 border-cyan-500' : 'bg-slate-900 text-slate-400 border-slate-800'
                   }`}
                 >
                   {cat}
@@ -379,21 +516,17 @@ export default function App() {
                 <div
                   key={item.id}
                   onClick={() => abrirDetalhesItem(item)}
-                  className="bg-slate-900 p-4 rounded-xl border border-slate-800/80 flex justify-between items-center gap-4 hover:border-cyan-500/40 transition-all cursor-pointer"
+                  className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center gap-4 hover:border-cyan-500/40 cursor-pointer transition-all"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold text-sm text-slate-100">{item.nome}</h3>
-                      <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md font-medium">
-                        {item.categoria}
-                      </span>
+                      <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md">{item.categoria}</span>
                     </div>
-                    {item.descricao && (
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.descricao}</p>
-                    )}
+                    {item.descricao && <p className="text-xs text-slate-400 mt-1">{item.descricao}</p>}
                     <p className="text-cyan-400 font-extrabold text-sm mt-2">R$ {item.preco.toFixed(2)}</p>
                   </div>
-                  <button className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold px-3 py-2 rounded-lg text-xs shrink-0">
+                  <button className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold px-3 py-2 rounded-lg text-xs">
                     + Opções
                   </button>
                 </div>
@@ -405,9 +538,7 @@ export default function App() {
             <div>
               <h2 className="text-base font-bold text-slate-100 mb-3 pb-2 border-b border-slate-800 flex justify-between items-center">
                 <span>Sua Sacola</span>
-                <span className="bg-cyan-500/10 text-cyan-400 text-xs px-2 py-0.5 rounded-full">
-                  {carrinho.length} itens
-                </span>
+                <span className="bg-cyan-500/10 text-cyan-400 text-xs px-2 py-0.5 rounded-full">{carrinho.length} itens</span>
               </h2>
 
               {carrinho.length === 0 ? (
@@ -415,15 +546,12 @@ export default function App() {
               ) : (
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {carrinho.map((item, index) => (
-                    <div key={index} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800/50 text-xs">
+                    <div key={index} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs">
                       <div className="flex justify-between items-center font-bold">
                         <span className="text-slate-300">{item.quantidade}x {item.nome}</span>
                         <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
                       </div>
-                      {item.ponto && <p className="text-[11px] text-cyan-400/90 mt-0.5">📍 {item.ponto}</p>}
-                      {item.molhos && item.molhos.length > 0 && (
-                        <p className="text-[10px] text-slate-400">🥣 {item.molhos.join(', ')}</p>
-                      )}
+                      {item.ponto && <p className="text-[11px] text-cyan-400 mt-0.5">📍 {item.ponto}</p>}
                     </div>
                   ))}
                 </div>
@@ -432,108 +560,65 @@ export default function App() {
 
             <div className="border-t border-slate-800 pt-3 space-y-3">
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">
-                  Abertura / Lançamento na Mesa
-                </span>
-
+                <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">Atendimento</span>
                 <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setTipoAtendimento('mesa')}
-                    className={`py-1.5 text-xs font-bold rounded-md transition-all ${
-                      tipoAtendimento === 'mesa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
-                    }`}
-                  >
-                    🪑 Na Mesa
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTipoAtendimento('avulso')}
-                    className={`py-1.5 text-xs font-bold rounded-md transition-all ${
-                      tipoAtendimento === 'avulso' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
-                    }`}
-                  >
-                    🚶 Avulso / Balcão
-                  </button>
+                  <button type="button" onClick={() => setTipoAtendimento('mesa')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'mesa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Mesa</button>
+                  <button type="button" onClick={() => setTipoAtendimento('avulso')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'avulso' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Avulso</button>
                 </div>
 
                 {tipoAtendimento === 'mesa' ? (
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                      Número da Mesa: *
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="Ex: 04"
-                      value={numMesa}
-                      onChange={(e) => setNumMesa(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-black text-xs p-2 rounded-lg focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                      Identificação / Senha: *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Balcão 01, Senha 12..."
-                      value={identificacaoAvulsa}
-                      onChange={(e) => setIdentificacaoAvulsa(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-black text-xs p-2 rounded-lg focus:outline-none focus:border-cyan-500"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                    Celular do Cliente: *
-                  </label>
                   <input
-                    type="tel"
-                    placeholder="Ex: 27999998888"
-                    value={celularCliente}
-                    onChange={handleCelularChange}
-                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 font-semibold text-xs p-2 rounded-lg focus:outline-none focus:border-cyan-500"
+                    type="number"
+                    placeholder="Número da Mesa (Ex: 04)"
+                    value={numMesa}
+                    onChange={(e) => setNumMesa(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg"
                   />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                    Nome do Cliente: *
-                  </label>
+                ) : (
                   <input
                     type="text"
-                    placeholder="Ex: Cliente"
-                    value={nomeCliente}
-                    onChange={(e) => setNomeCliente(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 font-semibold text-xs p-2 rounded-lg focus:outline-none focus:border-cyan-500"
+                    placeholder="Identificação (Ex: Balcão 01)"
+                    value={identificacaoAvulsa}
+                    onChange={(e) => setIdentificacaoAvulsa(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg"
                   />
-                  {clientesSalvos[celularCliente] && (
-                    <span className="text-[10px] text-emerald-400 font-bold block mt-1">
-                      ✓ Cliente cadastrado encontrado!
-                    </span>
-                  )}
-                </div>
+                )}
+
+                <input
+                  type="tel"
+                  placeholder="Celular do Cliente"
+                  value={celularCliente}
+                  onChange={handleCelularChange}
+                  className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
+                />
+
+                <input
+                  type="text"
+                  placeholder="Nome do Cliente"
+                  value={nomeCliente}
+                  onChange={(e) => setNomeCliente(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
+                />
               </div>
 
               <div className="flex justify-between text-sm font-bold">
                 <span className="text-slate-400">Total:</span>
-                <span className="text-cyan-400 text-base">R$ {total.toFixed(2)}</span>
+                <span className="text-cyan-400 text-base">R$ {totalCarrinho.toFixed(2)}</span>
               </div>
 
               <button
                 onClick={enviarPedido}
                 disabled={carrinho.length === 0}
-                className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-extrabold py-3 rounded-xl text-xs transition-colors shadow-lg shadow-cyan-500/10"
+                className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 text-slate-950 font-extrabold py-3 rounded-xl text-xs shadow-lg"
               >
-                Lançar Pedido
+                Lançar Pedido para Cozinha
               </button>
             </div>
           </section>
         </main>
       )}
 
+      {/* ABA 3: COMANDAS */}
       {abaAtiva === 'comandas' && (
         <main className="max-w-4xl mx-auto space-y-4">
           <h2 className="text-lg font-bold text-slate-100">Controle de Mesas & Comandas Abertas</h2>
@@ -545,40 +630,18 @@ export default function App() {
                 <div key={local} className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3">
                   <div className="flex justify-between items-start pb-2 border-b border-slate-800">
                     <div>
-                      <span className="bg-cyan-500 text-slate-950 font-black px-2.5 py-1 rounded text-xs">
-                        {local}
-                      </span>
+                      <span className="bg-cyan-500 text-slate-950 font-black px-2 py-0.5 rounded text-xs">{local}</span>
                       <span className="text-xs text-slate-300 font-bold ml-2">{info.cliente}</span>
-                      <span className="text-[10px] text-slate-500 block mt-0.5">📞 {info.celular}</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-black text-cyan-400 block">
-                        R$ {info.totalComanda.toFixed(2)}
-                      </span>
+                      <span className="text-xs font-black text-cyan-400 block">R$ {info.totalComanda.toFixed(2)}</span>
                       <button
-                        onClick={() => {
-                          setMesaFechamento(info);
-                          setQtdPessoas(1);
-                        }}
-                        className="mt-1 bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 px-2.5 py-1 rounded text-[11px] font-bold transition-all"
+                        onClick={() => { setMesaFechamento(info); setQtdPessoas(1); }}
+                        className="mt-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-1 rounded text-[11px] font-bold"
                       >
-                        📊 Fechar Mesa
+                        Fechar Mesa
                       </button>
                     </div>
-                  </div>
-
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {info.pedidos.map((ped, idx) => (
-                      <div key={idx} className="bg-slate-950 p-2 rounded border border-slate-800/60 text-xs">
-                        <span className="text-[10px] text-slate-500 block mb-1">Hora: {ped.horario}</span>
-                        {ped.itens.map((it, i) => (
-                          <div key={i} className="flex justify-between text-slate-300">
-                            <span>{it.quantidade}x {it.nome}</span>
-                            <span className="text-slate-400">R$ {it.precoTotalItem.toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
                   </div>
                 </div>
               ))}
@@ -587,210 +650,180 @@ export default function App() {
         </main>
       )}
 
+      {/* ABA 4: COZINHA SEPARADA */}
+      {abaAtiva === 'cozinha' && (
+        <main className="max-w-4xl mx-auto space-y-4">
+          <div className="bg-rose-950/20 border border-rose-500/30 p-4 rounded-xl">
+            <h2 className="text-lg font-black text-rose-400">🔥 Painel Exclusivo da Cozinha (KDS)</h2>
+            <p className="text-xs text-slate-400">Pedidos enviados em tempo real pelos garçons/atendentes.</p>
+          </div>
+
+          {pedidos.length === 0 ? (
+            <div className="bg-slate-900 p-8 rounded-xl border border-slate-800 text-center text-slate-500 text-sm">
+              Nenhum pedido pendente na cozinha no momento. 🧊
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {pedidos.map((p) => (
+                <div key={p.id} className="bg-slate-900 p-4 rounded-xl border border-rose-500/40 space-y-3 shadow-xl">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                    <div>
+                      <span className="bg-rose-500 text-slate-950 font-black px-2 py-1 rounded text-xs mr-2">{p.local}</span>
+                      <span className="text-xs text-white font-bold">{p.cliente}</span>
+                    </div>
+                    <span className="text-xs text-slate-400 font-mono">🕒 {p.horario}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">Atendente: <span className="text-cyan-400 font-bold">{p.atendente}</span></div>
+                  <ul className="space-y-2 text-xs">
+                    {p.itens.map((it, idx) => (
+                      <li key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                        <div className="font-bold text-slate-200">{it.quantidade}x {it.nome}</div>
+                        {it.ponto && <div className="text-cyan-400 text-[11px]">📍 Ponto: {it.ponto}</div>}
+                        {it.molhos && it.molhos.length > 0 && <div className="text-emerald-400 text-[11px]">🥣 Molhos: {it.molhos.join(', ')}</div>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </main>
+      )}
+
+      {/* ABA 5: GERENCIAR CARDÁPIO (Gestor / Admin) */}
+      {abaAtiva === 'gerenciar' && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
+        <main className="max-w-4xl mx-auto space-y-5">
+          <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
+            <h2 className="text-base font-bold text-emerald-400">⚙️ Adicionar Novo Item ao Cardápio</h2>
+            <form onSubmit={adicionarItemCardapio} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                type="text"
+                placeholder="Nome do Item"
+                value={novoNomeItem}
+                onChange={(e) => setNovoNomeItem(e.target.value)}
+                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
+              />
+              <select
+                value={novaCategoriaItem}
+                onChange={(e) => setNovaCategoriaItem(e.target.value)}
+                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
+              >
+                <option value="Espetinhos">Espetinhos</option>
+                <option value="Bebidas">Bebidas</option>
+                <option value="Porções">Porções</option>
+                <option value="Acompanhamentos">Acompanhamentos</option>
+              </select>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Preço (R$)"
+                value={novoPrecoItem}
+                onChange={(e) => setNovoPrecoItem(e.target.value)}
+                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
+              />
+              <input
+                type="text"
+                placeholder="Descrição opcional"
+                value={novaDescItem}
+                onChange={(e) => setNovaDescItem(e.target.value)}
+                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
+              />
+              <button type="submit" className="sm:col-span-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl text-xs">
+                Cadastrar Item no Cardápio
+              </button>
+            </form>
+          </div>
+
+          <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
+            <h2 className="text-base font-bold text-slate-100">Itens Atuais do Cardápio</h2>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {cardapio.map((i) => (
+                <div key={i.id} className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs">
+                  <div>
+                    <span className="font-bold text-white">{i.nome}</span>
+                    <span className="text-cyan-400 ml-2">R$ {i.preco.toFixed(2)}</span>
+                    <span className="text-slate-500 block text-[10px]">{i.categoria}</span>
+                  </div>
+                  <button onClick={() => removerItemCardapio(i.id)} className="bg-rose-500/20 text-rose-400 px-3 py-1 rounded-lg font-bold">
+                    Remover
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* MODAL DE CUSTOMIZAÇÃO DO ITEM */}
+      {itemSelecionado && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <h3 className="font-bold text-sm text-cyan-400">{itemSelecionado.nome}</h3>
+              <button onClick={() => setItemSelecionado(null)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
+            </div>
+
+            {itemSelecionado.categoria === 'Espetinhos' && (
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-slate-300">Ponto da Carne:</span>
+                {['Mal passado', 'Ao ponto', 'Bem passado'].map((p) => (
+                  <label key={p} onClick={() => setPontoCarne(p)} className={`flex justify-between p-2 rounded-lg border text-xs cursor-pointer ${pontoCarne === p ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-slate-800 text-slate-400'}`}>
+                    <span>{p}</span>
+                    <input type="radio" checked={pontoCarne === p} onChange={() => {}} className="accent-cyan-500" />
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-slate-300">Escolha os Molhos:</span>
+              {OPCOES_MOLHOS.map((molho) => {
+                const marcado = molhosSelecionados.includes(molho);
+                return (
+                  <label key={molho} onClick={() => alternarMolho(molho)} className={`flex justify-between p-2 rounded-lg border text-xs cursor-pointer ${marcado ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-slate-800 text-slate-400'}`}>
+                    <span>{molho}</span>
+                    <input type="checkbox" checked={marcado} onChange={() => {}} className="accent-cyan-500" />
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1">
+                <button onClick={() => setQuantidadeModal((q) => Math.max(1, q - 1))} className="w-8 h-8 font-bold">-</button>
+                <span className="w-8 text-center text-xs font-bold text-cyan-400">{quantidadeModal}</span>
+                <button onClick={() => setQuantidadeModal((q) => q + 1)} className="w-8 h-8 font-bold">+</button>
+              </div>
+              <button onClick={confirmarAdicaoModal} className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs">
+                Adicionar • R$ {(itemSelecionado.preco * quantidadeModal).toFixed(2)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE FECHAMENTO DE MESA */}
       {mesaFechamento && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-4 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-4 space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
               <div>
                 <h3 className="font-bold text-base text-cyan-400">Fechamento de Conta</h3>
                 <p className="text-xs text-slate-400">{mesaFechamento.local} - {mesaFechamento.cliente}</p>
               </div>
-              <button
-                onClick={() => setMesaFechamento(null)}
-                className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold"
-              >
-                ✕
-              </button>
+              <button onClick={() => setMesaFechamento(null)} className="text-slate-400 bg-slate-800 w-7 h-7 rounded-full text-xs font-bold">✕</button>
             </div>
 
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-300 block">Opção de Divisão:</span>
-              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-lg border border-slate-800">
-                <button
-                  onClick={() => setTipoDivisao('pessoa')}
-                  className={`py-1.5 text-xs font-bold rounded-md ${
-                    tipoDivisao === 'pessoa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
-                  }`}
-                >
-                  👥 Igual por Pessoa
-                </button>
-                <button
-                  onClick={() => setTipoDivisao('item')}
-                  className={`py-1.5 text-xs font-bold rounded-md ${
-                    tipoDivisao === 'item' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'
-                  }`}
-                >
-                  🍢 Detalhada por Item
-                </button>
-              </div>
+            <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-slate-800">
+              <span className="text-slate-400">Total da Comanda:</span>
+              <span className="text-lg font-black text-cyan-400">R$ {mesaFechamento.totalComanda.toFixed(2)}</span>
             </div>
 
-            {tipoDivisao === 'pessoa' && (
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs text-slate-400 font-semibold">Dividir por Quantas Pessoas?</label>
-                  <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg">
-                    <button
-                      onClick={() => setQtdPessoas((q) => Math.max(1, q - 1))}
-                      className="px-3 py-1 text-slate-300 font-bold"
-                    >
-                      -
-                    </button>
-                    <span className="px-2 text-xs font-bold text-cyan-400">{qtdPessoas}</span>
-                    <button
-                      onClick={() => setQtdPessoas((q) => q + 1)}
-                      className="px-3 py-1 text-slate-300 font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-800 pt-2 flex justify-between items-center text-sm">
-                  <span className="text-slate-400 font-bold">Valor por Pessoa:</span>
-                  <span className="text-emerald-400 font-black text-base">
-                    R$ {(mesaFechamento.totalComanda / qtdPessoas).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {tipoDivisao === 'item' && (
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
-                <span className="text-xs font-bold text-slate-400 block mb-1">Resumo do Consumo:</span>
-                <div className="space-y-1 max-h-40 overflow-y-auto">
-                  {mesaFechamento.pedidos.flatMap((p) => p.itens).map((it, i) => (
-                    <div key={i} className="flex justify-between text-xs text-slate-300 py-1 border-b border-slate-900">
-                      <span>{it.quantidade}x {it.nome}</span>
-                      <span className="font-bold text-cyan-400">R$ {it.precoTotalItem.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center pt-2 border-t border-slate-800">
-              <span className="text-sm font-bold text-slate-400">Total da Mesa:</span>
-              <span className="text-lg font-black text-cyan-400">
-                R$ {mesaFechamento.totalComanda.toFixed(2)}
-              </span>
-            </div>
-
-            <button
-              onClick={() => encerarComanda(mesaFechamento.local)}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs transition-colors shadow-lg shadow-emerald-500/10"
-            >
-              🏁 Receber Pagamento e Encerrar Mesa
+            <button onClick={() => encerarComanda(mesaFechamento.local)} className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">
+              🏁 Receber Pagamento e Liberar Mesa
             </button>
           </div>
         </div>
-      )}
-
-      {itemSelecionado && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col justify-between">
-            <div>
-              <div className="relative bg-slate-950 p-4 border-b border-slate-800 flex justify-between items-center">
-                <h3 className="font-bold text-sm text-slate-200">Personalizar Item</h3>
-                <button
-                  onClick={() => setItemSelecionado(null)}
-                  className="text-slate-400 hover:text-white bg-slate-800 w-7 h-7 rounded-full text-xs font-bold"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="p-4 border-b border-slate-800">
-                <h2 className="text-lg font-black text-white">{itemSelecionado.nome}</h2>
-                <p className="text-cyan-400 font-extrabold text-base mt-1">R$ {itemSelecionado.preco.toFixed(2)}</p>
-              </div>
-
-              {itemSelecionado.categoria === 'Espetinhos' && (
-                <div className="p-4 border-b border-slate-800 space-y-2">
-                  <span className="text-xs font-bold text-slate-200 block">Ponto da carne:</span>
-                  {['Mal passado', 'Ao ponto', 'Bem passado'].map((p) => (
-                    <label
-                      key={p}
-                      onClick={() => setPontoCarne(p)}
-                      className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-semibold cursor-pointer ${
-                        pontoCarne === p ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400' : 'bg-slate-950 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <span>{p}</span>
-                      <input type="radio" name="ponto" checked={pontoCarne === p} onChange={() => {}} className="accent-cyan-500" />
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              <div className="p-4 border-b border-slate-800 space-y-2">
-                <span className="text-xs font-bold text-slate-200 block">Escolha os Molhos:</span>
-                {OPCOES_MOLHOS.map((molho) => {
-                  const marcado = molhosSelecionados.includes(molho);
-                  return (
-                    <label
-                      key={molho}
-                      onClick={() => alternarMolho(molho)}
-                      className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-semibold cursor-pointer ${
-                        marcado ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400' : 'bg-slate-950 border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <span>{molho}</span>
-                      <input type="checkbox" checked={marcado} onChange={() => {}} className="accent-cyan-500" />
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center gap-3">
-              <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1">
-                <button onClick={() => setQuantidadeModal((q) => Math.max(1, q - 1))} className="w-8 h-8 font-bold text-slate-300">-</button>
-                <span className="w-8 text-center text-xs font-bold text-cyan-400">{quantidadeModal}</span>
-                <button onClick={() => setQuantidadeModal((q) => q + 1)} className="w-8 h-8 font-bold text-slate-300">+</button>
-              </div>
-
-              <button
-                onClick={confirmarAdicaoModal}
-                className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-3 rounded-xl text-xs flex justify-between items-center px-4"
-              >
-                <span>Adicionar</span>
-                <span>R$ {(itemSelecionado.preco * quantidadeModal).toFixed(2)}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {abaAtiva === 'cozinha' && (
-        <main className="max-w-4xl mx-auto space-y-4">
-          <h2 className="text-lg font-bold text-slate-100">Painel da Cozinha</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {pedidos.map((p) => (
-              <div key={p.id} className="bg-slate-900 p-4 rounded-xl border border-cyan-500/30">
-                <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-800">
-                  <div>
-                    <span className="bg-cyan-500 text-slate-950 font-black px-2 py-0.5 rounded text-xs mr-2">
-                      {p.local || `MESA ${p.mesa}`}
-                    </span>
-                    <span className="text-xs text-slate-200 font-bold">{p.cliente}</span>
-                    <span className="text-[10px] text-slate-400 block">📞 {p.celular}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400">{p.horario}</span>
-                </div>
-                <ul className="space-y-1.5 text-xs">
-                  {p.itens.map((it, idx) => (
-                    <li key={idx} className="bg-slate-950 p-2 rounded border border-slate-800">
-                      <div className="font-bold text-slate-200">{it.quantidade}x {it.nome}</div>
-                      {it.ponto && <div className="text-cyan-400 text-[10px]">📍 Ponto: {it.ponto}</div>}
-                      {it.molhos && it.molhos.length > 0 && <div className="text-emerald-400 text-[10px]">🥣 Molhos: {it.molhos.join(', ')}</div>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </main>
       )}
     </div>
   );
