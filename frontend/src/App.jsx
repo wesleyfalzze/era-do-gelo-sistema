@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
-const VERSAO_SISTEMA = "v2.6.9 • Atualizado em 02/09/2026 18:59";
+const VERSAO_SISTEMA = "v2.7.0 • Atualizado em 02/09/2026 19:08";
 
 const TOTAL_MESAS_SALAO = 15;
 
@@ -64,7 +64,6 @@ export default function App() {
   const [cardapio, setCardapio] = useState(CARDAPIO_INICIAL);
   const [carrinho, setCarrinho] = useState([]);
   
-  // Pedidos sincronizados com localStorage para garantir que nunca sumam
   const [pedidos, setPedidos] = useState(() => {
     const salvos = localStorage.getItem('eradogelo_pedidos_ativos');
     return salvos ? JSON.parse(salvos) : [];
@@ -72,9 +71,10 @@ export default function App() {
 
   const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
 
+  // Consulta por Mesa (Apenas número da mesa)
   const [mesaConsultaCliente, setMesaConsultaCliente] = useState('');
-  const [celularConsultaCliente, setCelularConsultaCliente] = useState('');
   const [contaConsultada, setContaConsultada] = useState(null);
+  const [contaSolicitadaSucesso, setContaSolicitadaSucesso] = useState(false);
 
   const [pedidoEnviadoSucesso, setPedidoEnviadoSucesso] = useState(null);
   const [statusEntregaPedido, setStatusEntregaPedido] = useState('enviando');
@@ -374,7 +374,6 @@ export default function App() {
     setPedidoEnviadoSucesso(pedidoObjeto);
     setStatusEntregaPedido('enviando');
 
-    // Emite para o servidor e atualiza estado/localStorage localmente
     socket.emit('novo_pedido', pedidoObjeto);
     setPedidos((prev) => {
       if (prev.some((p) => p.id === pedidoObjeto.id)) return prev;
@@ -405,18 +404,21 @@ export default function App() {
         cliente: pedido.cliente,
         celular: pedido.celular,
         pedidos: [],
-        totalComanda: 0
+        totalComanda: 0,
+        contaSolicitada: pedido.contaSolicitada || false
       };
     }
     acc[chave].pedidos.push(pedido);
     acc[chave].totalComanda += pedido.total;
+    if (pedido.contaSolicitada) acc[chave].contaSolicitada = true;
     return acc;
   }, {});
 
-  const consultarContaCliente = (e) => {
+  // Consulta conta apenas informando o número da mesa
+  const consultarContaPorMesa = (e) => {
     e.preventDefault();
-    if (!mesaConsultaCliente || !celularConsultaCliente) {
-      setMensagem('⚠️ Informe a Mesa e o Celular cadastrado!');
+    if (!mesaConsultaCliente) {
+      setMensagem('⚠️ Informe o número da mesa!');
       setTimeout(() => setMensagem(''), 4000);
       return;
     }
@@ -430,24 +432,32 @@ export default function App() {
       return;
     }
 
-    const pedidosDoCliente = comandaEncontrada.pedidos.filter(
-      (p) => p.celular.trim() === celularConsultaCliente.trim()
-    );
-
-    if (pedidosDoCliente.length === 0) {
-      setContaConsultada({ status: 'celular_nao_encontrado', local: chaveBuscada });
-      return;
-    }
-
-    const totalCliente = pedidosDoCliente.reduce((acc, p) => acc + p.total, 0);
-
     setContaConsultada({
       status: 'encontrado',
       local: chaveBuscada,
-      cliente: pedidosDoCliente[0].cliente,
-      pedidos: pedidosDoCliente,
-      total: totalCliente
+      pedidos: comandaEncontrada.pedidos,
+      total: comandaEncontrada.totalComanda
     });
+  };
+
+  // Solicitar fechamento da conta pelo autoatendimento
+  const solicitarFechamentoConta = () => {
+    if (!mesaConsultaCliente) return;
+    const numFmt = String(mesaConsultaCliente).padStart(2, '0');
+    const chaveBuscada = `Mesa ${numFmt}`;
+
+    // Atualiza os pedidos da mesa informando que a conta foi solicitada
+    setPedidos(prev => prev.map(p => {
+      let chave = p.local;
+      if (!chave && p.mesa && p.mesa !== 'Avulso') chave = `Mesa ${String(p.mesa).padStart(2, '0')}`;
+      if (chave === chaveBuscada) {
+        return { ...p, contaSolicitada: true };
+      }
+      return p;
+    }));
+
+    setContaSolicitadaSucesso(true);
+    setTimeout(() => setContaSolicitadaSucesso(false), 5000);
   };
 
   const encerarComanda = (localChave) => {
@@ -513,7 +523,7 @@ export default function App() {
                   onClick={() => setAbaAtiva('cardapio')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cardapio' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
                 >
-                  📋 Cardápio & Consulta
+                  📋 Cardápio & Conta
                 </button>
 
                 {usuarioLogado && (
@@ -602,48 +612,35 @@ export default function App() {
         {abaAtiva === 'cardapio' && (
           <main className="max-w-4xl mx-auto space-y-6">
             {!usuarioLogado && (
-              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl">
-                <h2 className="text-sm font-bold text-cyan-400 mb-2 flex items-center gap-1.5">
-                  🔍 Consultar Meus Pedidos & Valor da Conta
+              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl space-y-3">
+                <h2 className="text-sm font-bold text-cyan-400 flex items-center gap-1.5">
+                  🔍 Consultar Conta da Mesa (Itens Consumidos)
                 </h2>
-                <form onSubmit={consultarContaCliente} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <form onSubmit={consultarContaPorMesa} className="flex gap-2">
                   <input
                     type="number"
                     placeholder="Número da Mesa (Ex: 01)"
                     value={mesaConsultaCliente}
                     onChange={(e) => setMesaConsultaCliente(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
+                    className="flex-1 bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
                   />
-                  <input
-                    type="tel"
-                    placeholder="Seu Celular Cadastrado"
-                    value={celularConsultaCliente}
-                    onChange={(e) => setCelularConsultaCliente(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
-                  />
-                  <button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow">
+                  <button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow">
                     Consultar Conta 🔎
                   </button>
                 </form>
 
                 {contaConsultada && (
-                  <div className="mt-4 p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3 text-xs">
+                  <div className="mt-3 p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3 text-xs">
                     {contaConsultada.status === 'nao_encontrada' && (
                       <p className="text-rose-400 font-bold">❌ Nenhuma comanda aberta encontrada para a Mesa {contaConsultada.local}.</p>
-                    )}
-                    {contaConsultada.status === 'celular_nao_encontrado' && (
-                      <p className="text-amber-400 font-bold">⚠️ A Mesa {contaConsultada.local} está aberta, mas nenhum pedido foi localizado com este número de celular.</p>
                     )}
                     {contaConsultada.status === 'encontrado' && (
                       <>
                         <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                          <div>
-                            <span className="font-black text-cyan-400 text-sm">{contaConsultada.local}</span>
-                            <span className="text-slate-300 ml-2 font-bold">({contaConsultada.cliente})</span>
-                          </div>
+                          <span className="font-black text-cyan-400 text-sm">{contaConsultada.local}</span>
                           <span className="text-base font-black text-emerald-400">Total: R$ {contaConsultada.total.toFixed(2)}</span>
                         </div>
-                        <div className="space-y-2 max-h-36 overflow-y-auto">
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
                           {contaConsultada.pedidos.map((p, idx) => (
                             <div key={idx} className="bg-slate-900 p-2 rounded border border-slate-800">
                               <span className="text-[10px] text-slate-400 block mb-1">Pedido às {p.horario} • Status: <strong className="text-cyan-300">{p.status}</strong></span>
@@ -656,6 +653,17 @@ export default function App() {
                             </div>
                           ))}
                         </div>
+
+                        <button
+                          onClick={solicitarFechamentoConta}
+                          className="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow"
+                        >
+                          🛎️ Solicitar Fechamento de Conta ao Gestor
+                        </button>
+
+                        {contaSolicitadaSucesso && (
+                          <p className="text-emerald-400 font-bold text-center mt-2">✅ Solicitação enviada ao Gestor com sucesso!</p>
+                        )}
                       </>
                     )}
                   </div>
@@ -838,6 +846,7 @@ export default function App() {
                   {m.ocupada && (
                     <div className="text-[10px] text-rose-400 font-bold truncate">
                       R$ {m.dados.totalComanda.toFixed(2)}
+                      {m.dados.contaSolicitada && <span className="block text-amber-400">🔔 Conta Solicitada!</span>}
                     </div>
                   )}
 
@@ -861,15 +870,22 @@ export default function App() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(comandasAgrupadas).map(([local, info]) => {
-                  const podeFechar = usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor' || info.pedidos.some(p => p.atendente.includes(usuarioLogado.nome));
+                  // Permitir fechar conta APENAS se for Gestor ou Administrador (usuarioLogado.tipo === 'gestor' ou 'adm')
+                  const podeFechar = usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor';
 
                   return (
-                    <div key={local} className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3">
+                    <div key={local} className={`bg-slate-900 p-4 rounded-xl border space-y-3 ${info.contaSolicitada ? 'border-amber-500 shadow-amber-500/10 shadow-xl' : 'border-slate-800'}`}>
                       <div className="flex justify-between items-start pb-2 border-b border-slate-800">
                         <div>
-                          <span className="bg-cyan-500 text-slate-950 font-black px-2 py-0.5 rounded text-xs">{local}</span>
-                          <span className="text-xs text-slate-300 font-bold ml-2">{info.cliente}</span>
-                          <span className="text-[10px] text-slate-500 block">📞 {info.celular}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="bg-cyan-500 text-slate-950 font-black px-2 py-0.5 rounded text-xs">{local}</span>
+                            {info.contaSolicitada && (
+                              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">
+                                🔔 Pediu a Conta
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-slate-300 font-bold mt-1 block">{info.cliente}</span>
                         </div>
                         <div className="text-right">
                           <span className="text-xs font-black text-cyan-400 block">R$ {info.totalComanda.toFixed(2)}</span>
@@ -882,12 +898,12 @@ export default function App() {
                                 setPagamentosMesa({});
                                 setItensSelecionadosFechamento({});
                               }} 
-                              className="mt-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2.5 py-1 rounded text-[11px] font-bold hover:bg-emerald-500 hover:text-slate-950 transition-all"
+                              className="mt-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3 py-1 rounded text-[11px] font-black transition-all shadow"
                             >
-                              📊 Fechar Mesa
+                              📊 Fechar Conta (Gestor)
                             </button>
                           ) : (
-                            <span className="text-[10px] text-slate-500 block mt-1">Fechamento restrito</span>
+                            <span className="text-[10px] text-slate-500 block mt-1">Apenas Gestor/Adm</span>
                           )}
                         </div>
                       </div>
