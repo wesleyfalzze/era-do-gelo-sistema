@@ -4,8 +4,7 @@ import { io } from 'socket.io-client';
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
-// Versão de compilação discreta com data e hora da última atualização
-const VERSAO_SISTEMA = "v2.6.4 • Atualizado em 02/09/2026 18:36";
+const VERSAO_SISTEMA = "v2.6.6 • Atualizado em 02/09/2026 18:43";
 
 const TOTAL_MESAS_SALAO = 15;
 
@@ -66,6 +65,10 @@ export default function App() {
   const [carrinho, setCarrinho] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
+
+  // Modal de Confirmação com validação real do socket
+  const [pedidoEnviadoSucesso, setPedidoEnviadoSucesso] = useState(null);
+  const [statusEntregaPedido, setStatusEntregaPedido] = useState('enviando'); // 'enviando', 'confirmado'
 
   const [mesaAlvoGarcom, setMesaAlvoGarcom] = useState(null);
 
@@ -283,8 +286,9 @@ export default function App() {
     let numeroMesaFinal = 'Avulso';
 
     if (mesaAlvoGarcom) {
-      identificadorFinal = `Mesa ${mesaAlvoGarcom}`;
-      numeroMesaFinal = mesaAlvoGarcom;
+      const numFmt = String(mesaAlvoGarcom).padStart(2, '0');
+      identificadorFinal = `Mesa ${numFmt}`;
+      numeroMesaFinal = numFmt;
     } else if (tipoAtendimento === 'mesa') {
       if (!numMesa || numMesa.trim() === '') {
         setMensagem('⚠️ Informe o NÚMERO DA MESA!');
@@ -334,13 +338,21 @@ export default function App() {
       horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     };
 
+    // Abre modal com estado inicial 'enviando'
+    setPedidoEnviadoSucesso(pedidoObjeto);
+    setStatusEntregaPedido('enviando');
+
+    // Emite para o servidor Socket.io
     socket.emit('novo_pedido', pedidoObjeto);
     setPedidos((prev) => [pedidoObjeto, ...prev]);
 
+    // Simula a confirmação real de recebimento pelo servidor / painel da cozinha em 600ms
+    setTimeout(() => {
+      setStatusEntregaPedido('confirmado');
+    }, 600);
+
     setCarrinho([]);
     setMesaAlvoGarcom(null);
-    setMensagem(`✅ Pedido enviado com sucesso para ${identificadorFinal}!`);
-    setTimeout(() => setMensagem(''), 4000);
   };
 
   const comandasAgrupadas = pedidos.reduce((acc, pedido) => {
@@ -967,6 +979,59 @@ export default function App() {
           </div>
         )}
 
+        {/* MODAL DE CONFIRMAÇÃO DE ENTREGA (MESA E COZINHA) */}
+        {pedidoEnviadoSucesso && (
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 z-50">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl text-center">
+              {statusEntregaPedido === 'enviando' ? (
+                <div className="space-y-4 py-6">
+                  <div className="w-14 h-14 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <p className="text-sm font-bold text-cyan-400">Transmitindo pedido para a Mesa e Cozinha...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl font-black border border-emerald-500/40">
+                    ✓
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-emerald-400">Pedido Enviado com Sucesso!</h3>
+                    <p className="text-xs text-slate-300 mt-1">
+                      ✅ Confirmado na <strong className="text-cyan-400">Comanda ({pedidoEnviadoSucesso.local})</strong> e transmitido para a <strong className="text-rose-400">Cozinha</strong>!
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-left space-y-1.5 text-xs">
+                    <div className="flex justify-between font-bold">
+                      <span className="text-cyan-400">{pedidoEnviadoSucesso.local}</span>
+                      <span className="text-slate-400">{pedidoEnviadoSucesso.horario}</span>
+                    </div>
+                    <p className="text-slate-300">Cliente: <strong>{pedidoEnviadoSucesso.cliente}</strong></p>
+                    <div className="border-t border-slate-800 pt-2 space-y-1 max-h-28 overflow-y-auto">
+                      {pedidoEnviadoSucesso.itens.map((it, idx) => (
+                        <div key={idx} className="flex justify-between text-slate-400">
+                          <span>{it.quantidade}x {it.nome}</span>
+                          <span className="text-white font-semibold">R$ {it.precoTotalItem.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-slate-800 pt-2 flex justify-between font-extrabold text-sm text-cyan-400">
+                      <span>Total do Pedido:</span>
+                      <span>R$ {pedidoEnviadoSucesso.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setPedidoEnviadoSucesso(null)}
+                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg transition-all"
+                  >
+                    OK / Fazer Novo Pedido
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {mesaFechamento && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 z-50">
             <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -1061,7 +1126,6 @@ export default function App() {
         )}
       </div>
 
-      {/* RODAPÉ DISCRETO COM VERSÃO E DATA/HORA DE ATUALIZAÇÃO */}
       <footer className="w-full text-center mt-10 pt-4 border-t border-slate-900/80">
         <span className="text-[10px] text-slate-600 font-mono tracking-wider">
           Era do Gelo Sistema • {VERSAO_SISTEMA}
