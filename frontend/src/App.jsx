@@ -263,7 +263,7 @@ export default function App() {
     setItemSelecionado(null);
   };
 
-  const enviarPedido = () => {
+const enviarPedido = () => {
     if (carrinho.length === 0) return;
 
     let identificadorFinal = '';
@@ -278,8 +278,9 @@ export default function App() {
         setTimeout(() => setMensagem(''), 4000);
         return;
       }
-      identificadorFinal = `Mesa ${String(numMesa).padStart(2, '0')}`;
-      numeroMesaFinal = String(numMesa).padStart(2, '0');
+      const numFmt = String(numMesa).padStart(2, '0');
+      identificadorFinal = `Mesa ${numFmt}`;
+      numeroMesaFinal = numFmt;
     } else {
       if (!identificacaoAvulsa || identificacaoAvulsa.trim() === '') {
         setMensagem('⚠️ Informe a identificação do Pedido!');
@@ -287,6 +288,7 @@ export default function App() {
         return;
       }
       identificadorFinal = `AVULSO: ${identificacaoAvulsa}`;
+      numeroMesaFinal = 'Avulso';
     }
 
     if (!celularCliente || celularCliente.trim() === '') {
@@ -295,6 +297,40 @@ export default function App() {
       return;
     }
 
+    if (!nomeCliente || nomeCliente.trim() === '') {
+      setMensagem('⚠️ Informe o NOME!');
+      setTimeout(() => setMensagem(''), 4000);
+      return;
+    }
+
+    setClientesSalvos((prev) => ({ ...prev, [celularCliente]: nomeCliente }));
+
+    const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
+
+    const pedidoObjeto = {
+      id: Date.now(),
+      local: identificadorFinal,
+      tipo: mesaAlvoGarcom ? 'mesa' : tipoAtendimento,
+      mesa: numeroMesaFinal,
+      cliente: nomeCliente,
+      celular: celularCliente,
+      atendente: usuarioLogado ? `${usuarioLogado.nome} (${usuarioLogado.tipo})` : 'Cliente (Autoatendimento)',
+      itens: carrinho,
+      total: totalCalculado,
+      status: 'Pendente',
+      horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    socket.emit('novo_pedido', pedidoObjeto);
+    setPedidos((prev) => [pedidoObjeto, ...prev]);
+
+    setCarrinho ലേഖ(  // Limpa carrinho
+      setCarrinho([])
+    );
+    setMesaAlvoGarcom(null);
+    setMensagem(`✅ Pedido enviado com sucesso para ${identificadorFinal}!`);
+    setTimeout(() => setMensagem(''), 4000);
+  };
     if (!nomeCliente || nomeCliente.trim() === '') {
       setMensagem('⚠️ Informe o NOME!');
       setTimeout(() => setMensagem(''), 4000);
