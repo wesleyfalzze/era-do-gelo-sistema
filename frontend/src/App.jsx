@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
-const VERSAO_SISTEMA = "v2.9.0 • Atualizado em 02/09/2026 21:00";
+const VERSAO_SISTEMA = "v3.0.0 • Atualizado em 02/09/2026 21:30";
 const TOTAL_MESAS_SALAO = 15;
 
 const OPCOES_MOLHOS = [
@@ -63,7 +63,6 @@ export default function App() {
   const [historicoVendas, setHistoricoVendas] = useState([]);
   const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
 
-  // Filtros de Relatório por Período
   const hojeStr = new Date().toISOString().split('T')[0];
   const [dataInicioFiltro, setDataInicioFiltro] = useState(hojeStr);
   const [dataFimFiltro, setDataFimFiltro] = useState(hojeStr);
@@ -73,8 +72,6 @@ export default function App() {
   const [contaSolicitadaSucesso, setContaSolicitadaSucesso] = useState(false);
 
   const [pedidoEnviadoSucesso, setPedidoEnviadoSucesso] = useState(null);
-  const [statusEntregaPedido, setStatusEntregaPedido] = useState('enviando');
-
   const [mesaAlvoGarcom, setMesaAlvoGarcom] = useState(null);
 
   const [novoNomeItem, setNovoNomeItem] = useState('');
@@ -85,8 +82,14 @@ export default function App() {
   const [tipoAtendimento, setTipoAtendimento] = useState('mesa');
   const [numMesa, setNumMesa] = useState('');
   const [identificacaoAvulsa, setIdentificacaoAvulsa] = useState('');
-  const [celularCliente, setCelularCliente] = useState('');
-  const [nomeCliente, setNomeCliente] = useState('');
+  
+  // Captura automática de celular (ou salvamento em cache do navegador) + input manual se necessário
+  const [celularCliente, setCelularCliente] = useState(() => {
+    return localStorage.getItem('eradogelo_cliente_celular') || '';
+  });
+  const [nomeCliente, setNomeCliente] = useState(() => {
+    return localStorage.getItem('eradogelo_cliente_nome') || '';
+  });
   const [mensagem, setMensagem] = useState('');
 
   const [itemSelecionado, setItemSelecionado] = useState(null);
@@ -95,8 +98,6 @@ export default function App() {
   const [molhosSelecionados, setMolhosSelecionados] = useState([]);
 
   const [mesaFechamento, setMesaFechamento] = useState(null);
-  const [tipoDivisao, setTipoDivisao] = useState('total');
-  const [qtdPessoas, setQtdPessoas] = useState(1);
   const [pagamentosMesa, setPagamentosMesa] = useState({});
 
   useEffect(() => {
@@ -125,7 +126,6 @@ export default function App() {
     });
 
     socket.on('pedido_recebido', (novoPedido) => {
-      // Dispara o alerta sonoro e visual APENAS para gestores / funcionários logados
       setNovoPedidoAlerta(novoPedido);
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -162,7 +162,7 @@ export default function App() {
     setModalLoginAberto(false);
     setInputUsuario('');
     setInputSenha('');
-    setAbaAtiva('salao');
+    setAbaAtiva(userEncontrado.tipo === 'garcom' ? 'garcom' : 'salao');
   };
 
   const handleLogout = () => {
@@ -199,7 +199,7 @@ export default function App() {
     setNovoUsuario('');
     setNovoSenhaUser('');
     setNovoNomeUser('');
-    setMensagem('✅ Novo colaborador cadastrado e salvo!');
+    setMensagem('✅ Novo colaborador cadastrado!');
     setTimeout(() => setMensagem(''), 3000);
   };
 
@@ -278,7 +278,7 @@ export default function App() {
 
     let identificadorFinal = '';
     let numeroMesaFinal = 'Avulso';
-    let nomeClienteFinal = nomeCliente || 'Cliente';
+    let nomeClienteFinal = nomeCliente || 'Cliente Autoatendimento';
 
     if (mesaAlvoGarcom) {
       const numFmt = String(mesaAlvoGarcom).padStart(2, '0');
@@ -304,6 +304,14 @@ export default function App() {
       numeroMesaFinal = 'Avulso';
     }
 
+    // Salva o celular e nome no localStorage para capturar automaticamente nas próximas vezes
+    if (celularCliente) {
+      localStorage.setItem('eradogelo_cliente_celular', celularCliente);
+    }
+    if (nomeCliente) {
+      localStorage.setItem('eradogelo_cliente_nome', nomeCliente);
+    }
+
     const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
 
     const pedidoObjeto = {
@@ -312,20 +320,18 @@ export default function App() {
       tipo: mesaAlvoGarcom ? 'mesa' : tipoAtendimento,
       mesa: numeroMesaFinal,
       cliente: nomeClienteFinal,
-      celular: celularCliente || '00000000000',
+      celular: celularCliente || 'Não informado',
       atendente: usuarioLogado ? `${usuarioLogado.nome} (${usuarioLogado.tipo})` : 'Cliente (Autoatendimento)',
       itens: carrinho,
       total: totalCalculado,
       status: 'Pendente',
+      entregue: false, // Controle de entrega do garçom
       horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     };
 
     setPedidoEnviadoSucesso(pedidoObjeto);
-    setStatusEntregaPedido('enviando');
-
     socket.emit('novo_pedido', pedidoObjeto);
 
-    setTimeout(() => setStatusEntregaPedido('confirmado'), 600);
     setCarrinho([]);
     setMesaAlvoGarcom(null);
   };
@@ -397,7 +403,7 @@ export default function App() {
     const agora = new Date();
     const registroVenda = {
       id: Date.now(),
-      dataIso: agora.toISOString().split('T')[0], // yyyy-mm-dd para facilitar filtros
+      dataIso: agora.toISOString().split('T')[0],
       local: localChave,
       cliente: infoComanda.cliente,
       total: infoComanda.totalComanda,
@@ -419,7 +425,6 @@ export default function App() {
     setAbaAtiva('cardapio');
   };
 
-  // Filtrar relatório por data inicial e final
   const vendasFiltradasPorPeriodo = historicoVendas.filter((v) => {
     if (!v.dataIso) return true;
     return v.dataIso >= dataInicioFiltro && v.dataIso <= dataFimFiltro;
@@ -485,6 +490,12 @@ export default function App() {
                       🪑 Salão
                     </button>
                     <button
+                      onClick={() => setAbaAtiva('garcom')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'garcom' ? 'bg-emerald-500 text-slate-950' : 'text-emerald-400'}`}
+                    >
+                      🏃‍♂️ Painel Garçom ({pedidos.filter(p => p.status === 'Pronto' && !p.entregue).length})
+                    </button>
+                    <button
                       onClick={() => setAbaAtiva('comandas')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'comandas' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
                     >
@@ -541,7 +552,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* ALERTA VISUAL E SONORO EXCLUSIVO PARA O GESTOR / FUNCIONÁRIO */}
+        {/* ALERTA APENAS PARA GESTOR / COZINHA */}
         {usuarioLogado && novoPedidoAlerta && (
           <div className="max-w-4xl mx-auto mb-4 p-4 bg-amber-500/20 border-2 border-amber-500 text-amber-300 rounded-2xl flex justify-between items-center animate-bounce shadow-2xl">
             <div>
@@ -682,7 +693,7 @@ export default function App() {
 
                 <div className="border-t border-slate-800 pt-3 space-y-3">
                   <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3">
-                    <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">Identificação</span>
+                    <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">Identificação & Celular</span>
                     {!mesaAlvoGarcom && (
                       <>
                         <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
@@ -697,6 +708,7 @@ export default function App() {
                       </>
                     )}
                     <input type="text" placeholder="Seu Nome" value={nomeCliente} onChange={(e) => setNomeCliente(e.target.value)} className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg" />
+                    <input type="tel" placeholder="Celular / WhatsApp (Capturado/Digite)" value={celularCliente} onChange={(e) => setCelularCliente(e.target.value)} className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg" />
                   </div>
 
                   <div className="flex justify-between text-sm font-bold">
@@ -754,6 +766,67 @@ export default function App() {
           </main>
         )}
 
+        {/* PAINEL DO GARÇOM (CONTROLE DE ENTREGA) */}
+        {abaAtiva === 'garcom' && usuarioLogado && (
+          <main className="max-w-4xl mx-auto space-y-4">
+            <div className="bg-emerald-950/30 border border-emerald-500/30 p-4 rounded-xl flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-black text-emerald-400">🏃‍♂️ Painel do Garçom (Prontos para Entrega)</h2>
+                <p className="text-xs text-slate-400">Marque os pedidos abaixo como entregues assim que levar até a mesa correspondente.</p>
+              </div>
+            </div>
+
+            {pedidos.filter(p => p.status === 'Pronto').length === 0 ? (
+              <div className="bg-slate-900 p-8 rounded-xl border border-slate-800 text-center text-slate-500 text-sm">
+                Nenhum pedido pronto para entrega no momento. 🧊
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pedidos.filter(p => p.status === 'Pronto').map((p) => (
+                  <div key={p.id} className={`bg-slate-900 p-4 rounded-xl border space-y-3 shadow-xl ${p.entregue ? 'border-emerald-500/50 opacity-60' : 'border-amber-500/80 animate-pulse'}`}>
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                      <span className="bg-emerald-500 text-slate-950 font-black px-2.5 py-1 rounded text-xs">{p.local}</span>
+                      <span className="text-xs text-slate-400">🕒 {p.horario}</span>
+                    </div>
+
+                    <div className="text-xs space-y-1">
+                      <p className="text-slate-300">Cliente: <strong>{p.cliente}</strong></p>
+                      <p className="text-slate-400">Atendente/Origem: <strong>{p.atendente}</strong></p>
+                    </div>
+
+                    <ul className="space-y-1.5 text-xs bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                      {p.itens.map((it, idx) => (
+                        <li key={idx} className="flex justify-between text-slate-300">
+                          <span>{it.quantidade}x {it.nome} {it.ponto ? `(${it.ponto})` : ''}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {p.entregue ? (
+                      <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-center py-2 rounded-lg text-xs font-bold">
+                        ✓ Entregue na Mesa com Sucesso
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          const novos = pedidos.map(item => item.id === p.id ? { ...item, entregue: true } : item);
+                          setPedidos(novos);
+                          socket.emit('atualizar_status_pedido', { idPedido: p.id, status: 'Pronto (Entregue)' });
+                          setMensagem(`✅ Pedido da ${p.local} marcado como entregue!`);
+                          setTimeout(() => setMensagem(''), 3000);
+                        }}
+                        className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow-lg transition-all"
+                      >
+                        📦 Marcar como Entregue na Mesa
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </main>
+        )}
+
         {abaAtiva === 'comandas' && usuarioLogado && (
           <main className="max-w-4xl mx-auto space-y-4">
             <h2 className="text-lg font-bold text-slate-100">Controle de Mesas & Comandas Abertas</h2>
@@ -790,7 +863,6 @@ export default function App() {
           </main>
         )}
 
-        {/* RELATÓRIOS POR PERÍODO (DATA INICIAL E FINAL) */}
         {abaAtiva === 'relatorios' && usuarioLogado && (usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor') && (
           <main className="max-w-4xl mx-auto space-y-5">
             <div className="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-4">
@@ -982,10 +1054,10 @@ export default function App() {
             <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl text-center">
               <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl font-black border border-emerald-500/40">✓</div>
               <div>
-                <h3 className="text-xl font-black text-emerald-400">Pedido Enviado com Sucesso!</h3>
-                <p className="text-xs text-slate-300 mt-1">Transmitido para a cozinha!</p>
+                <h3 className="text-xl font-black text-emerald-400">Pedido Realizado com Sucesso!</h3>
+                <p className="text-xs text-slate-300 mt-1">Transmitido para a cozinha e garçons!</p>
               </div>
-              <button onClick={() => setPedidoEnviadoSucesso(null)} className="w-full bg-emerald-500 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">OK</button>
+              <button onClick={() => setPedidoEnviadoSucesso(null)} className="w-full bg-emerald-500 text-slate-950 font-black py-3 rounded-xl text-xs shadow-lg">Fazer Novo Pedido</button>
             </div>
           </div>
         )}
