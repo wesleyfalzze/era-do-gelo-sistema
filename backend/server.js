@@ -21,7 +21,7 @@ if (MONGO_URI) {
     })
     .catch(err => console.error("❌ Erro ao conectar ao MongoDB:", err));
 } else {
-  console.warn("⚠️ ATENÇÃO: Variável MONGO_URI não encontrada nas variáveis de ambiente!");
+  console.warn("⚠️ ATENÇÃO: Variável MONGO_URI não encontrada!");
 }
 
 app.get('/', (req, res) => {
@@ -39,89 +39,100 @@ const io = new Server(server, {
 io.on('connection', async (socket) => {
   console.log(`🔌 Novo cliente conectado: ${socket.id}`);
 
-  // Envia dados iniciais salvos no banco
   try {
     if (db) {
       const pedidosSalvos = await db.collection('pedidos').find({}).toArray();
       const cardapioSalvo = await db.collection('cardapio').find({}).toArray();
       const usuariosSalvos = await db.collection('usuarios').find({}).toArray();
       const vendasSalvas = await db.collection('vendas').find({}).toArray();
+      const clientesSalvos = await db.collection('clientes').find({}).toArray();
 
       socket.emit('atualizar_lista_pedidos', pedidosSalvos);
       socket.emit('atualizar_cardapio', cardapioSalvo);
       socket.emit('atualizar_usuarios', usuariosSalvos);
       socket.emit('atualizar_vendas', vendasSalvas);
+      socket.emit('atualizar_clientes', clientesSalvos);
     }
   } catch (e) {
     console.error("Erro ao buscar dados iniciais:", e);
   }
 
-  // Sincronizar Cardápio Completo (Gravação e Atualização de Produtos)
+  // Sincronizar Cardápio
   socket.on('salvar_cardapio', async (novoCardapio) => {
     try {
       if (db) {
         await db.collection('cardapio').deleteMany({});
-        if (novoCardapio.length > 0) {
-          await db.collection('cardapio').insertMany(novoCardapio);
-        }
+        if (novoCardapio.length > 0) await db.collection('cardapio').insertMany(novoCardapio);
       }
       io.emit('atualizar_cardapio', novoCardapio);
-      console.log("📋 Cardápio atualizado e gravado no MongoDB.");
-    } catch (e) {
-      console.error("Erro ao salvar cardápio:", e);
-    }
+    } catch (e) { console.error(e); }
   });
 
-  // Sincronizar Usuários Cadastrados
-  socket.on('salvar_usuarios', async (novaListaUsuarios) => {
+  // Sincronizar Usuários
+  socket.on('salvar_usuarios', async (novaLista) => {
     try {
       if (db) {
         await db.collection('usuarios').deleteMany({});
-        if (novaListaUsuarios.length > 0) {
-          await db.collection('usuarios').insertMany(novaListaUsuarios);
-        }
+        if (novaLista.length > 0) await db.collection('usuarios').insertMany(novaLista);
       }
-      io.emit('atualizar_usuarios', novaListaUsuarios);
-      console.log("👥 Usuários atualizados e gravados no MongoDB.");
-    } catch (e) {
-      console.error("Erro ao salvar usuários:", e);
-    }
+      io.emit('atualizar_usuarios', novaLista);
+    } catch (e) { console.error(e); }
   });
 
-  // Novo Pedido / Lançamento de Mesa
+  // Salvar / Atualizar Clientes (Celular ➔ Nome)
+  socket.on('salvar_cliente', async ({ celular, nome }) => {
+    try {
+      if (db && celular && nome) {
+        await db.collection('clientes').updateOne(
+          { celular },
+          { $set: { celular, nome, updatedAt: new Date() } },
+          { upsert: true }
+        );
+        const clientesAtualizados = await db.collection('clientes').find({}).toArray();
+        io.emit('atualizar_clientes', clientesAtualizados);
+      }
+    } catch (e) { console.error(e); }
+  });
+
+  // Novo Pedido
   socket.on('novo_pedido', async (pedido) => {
     try {
       if (db) {
         const existe = await db.collection('pedidos').findOne({ id: pedido.id });
-        if (!existe) {
-          await db.collection('pedidos').insertOne(pedido);
-        }
+        if (!existe) await db.collection('pedidos').insertOne(pedido);
       }
       io.emit('pedido_recebido', pedido);
       if (db) {
         const listaAtualizada = await db.collection('pedidos').find({}).toArray();
         io.emit('atualizar_lista_pedidos', listaAtualizada);
       }
-    } catch (e) {
-      console.error("Erro ao salvar novo pedido:", e);
-    }
+    } catch (e) { console.error(e); }
   });
 
-  // Atualizar Status do Pedido
-  socket.on('atualizar_status_pedido', async ({ idPedido, status }) => {
+  // Atualizar Status do Pedido / Entrega / Cancelamento
+  socket.on('atualizar_status_pedido', async (dadosAtualizados) => {
     try {
       if (db) {
-        await db.collection('pedidos').updateOne({ id: idPedido }, { $set: { status } });
+        await db.collection('pedidos').updateOne(
+          { id: dadosAtualizados.idPedido },
+          { 
+            $set: { 
+              status: dadosAtualizados.status,
+              entregue: dadosAtualizados.entregue,
+              garcomEntrega: dadosAtualizados.garcomEntrega || null,
+              horarioEntrega: dadosAtualizados.horarioEntrega || null,
+              cancelado: dadosAtualizados.cancelado || false,
+              motivoCancelamento: dadosAtualizados.motivoCancelamento || null
+            } 
+          }
+        );
         const listaAtualizada = await db.collection('pedidos').find({}).toArray();
-        io.emit('atualizar_status_pedido', { idPedido, status });
         io.emit('atualizar_lista_pedidos', listaAtualizada);
       }
-    } catch (e) {
-      console.error("Erro ao atualizar status:", e);
-    }
+    } catch (e) { console.error(e); }
   });
 
-  // Solicitar Fechamento de Conta
+  // Solicitar Fechamento
   socket.on('solicitar_fechamento', async (localChave) => {
     try {
       if (db) {
@@ -129,21 +140,14 @@ io.on('connection', async (socket) => {
         const listaAtualizada = await db.collection('pedidos').find({}).toArray();
         io.emit('atualizar_lista_pedidos', listaAtualizada);
       }
-    } catch (e) {
-      console.error("Erro ao solicitar fechamento:", e);
-    }
+    } catch (e) { console.error(e); }
   });
 
-  // Fechar Comanda (Grava nos Relatórios de Vendas e Remove da Mesa Ativa)
+  // Fechar Comanda e Gravar Venda
   socket.on('fechar_comanda', async ({ localChave, registroVenda }) => {
     try {
       if (db) {
-        // Grava histórico permanente de vendas para relatórios do gestor
-        if (registroVenda) {
-          await db.collection('vendas').insertOne(registroVenda);
-        }
-
-        // Remove os pedidos da comanda fechada
+        if (registroVenda) await db.collection('vendas').insertOne(registroVenda);
         await db.collection('pedidos').deleteMany({
           $or: [
             { local: localChave },
@@ -156,11 +160,8 @@ io.on('connection', async (socket) => {
 
         io.emit('atualizar_lista_pedidos', listaPedidos);
         io.emit('atualizar_vendas', listaVendas);
-        console.log(`🏁 Comanda ${localChave} fechada, gravada em vendas e removida das ativas.`);
       }
-    } catch (e) {
-      console.error("Erro ao fechar comanda e salvar venda:", e);
-    }
+    } catch (e) { console.error(e); }
   });
 
   socket.on('disconnect', () => {
