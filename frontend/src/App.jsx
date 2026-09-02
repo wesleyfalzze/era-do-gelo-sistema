@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
-const VERSAO_SISTEMA = "v2.6.6 • Atualizado em 02/09/2026 18:43";
+const VERSAO_SISTEMA = "v2.6.8 • Atualizado em 02/09/2026 18:55";
 
 const TOTAL_MESAS_SALAO = 15;
 
@@ -66,9 +66,12 @@ export default function App() {
   const [pedidos, setPedidos] = useState([]);
   const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
 
-  // Modal de Confirmação com validação real do socket
+  const [mesaConsultaCliente, setMesaConsultaCliente] = useState('');
+  const [celularConsultaCliente, setCelularConsultaCliente] = useState('');
+  const [contaConsultada, setContaConsultada] = useState(null);
+
   const [pedidoEnviadoSucesso, setPedidoEnviadoSucesso] = useState(null);
-  const [statusEntregaPedido, setStatusEntregaPedido] = useState('enviando'); // 'enviando', 'confirmado'
+  const [statusEntregaPedido, setStatusEntregaPedido] = useState('enviando');
 
   const [mesaAlvoGarcom, setMesaAlvoGarcom] = useState(null);
 
@@ -101,8 +104,21 @@ export default function App() {
   const [pagamentosMesa, setPagamentosMesa] = useState({});
 
   useEffect(() => {
+    // Ao carregar, solicita histórico completo se houver no servidor socket
+    socket.on('connect', () => {
+      socket.emit('solicitar_pedidos');
+    });
+
+    socket.on('atualizar_lista_pedidos', (listaServidor) => {
+      setPedidos(listaServidor);
+    });
+
     socket.on('pedido_recebido', (novoPedido) => {
-      setPedidos((prev) => [novoPedido, ...prev]);
+      setPedidos((prev) => {
+        // Evita duplicatas pelo ID
+        if (prev.some((p) => p.id === novoPedido.id)) return prev;
+        return [novoPedido, ...prev];
+      });
       
       setNovoPedidoAlerta(novoPedido);
       try {
@@ -122,6 +138,8 @@ export default function App() {
     });
 
     return () => {
+      socket.off('connect');
+      socket.off('atualizar_lista_pedidos');
       socket.off('pedido_recebido');
       socket.off('status_pedido_atualizado');
     };
@@ -284,11 +302,16 @@ export default function App() {
 
     let identificadorFinal = '';
     let numeroMesaFinal = 'Avulso';
+    let nomeClienteFinal = nomeCliente;
+    let celularClienteFinal = celularCliente;
 
     if (mesaAlvoGarcom) {
       const numFmt = String(mesaAlvoGarcom).padStart(2, '0');
       identificadorFinal = `Mesa ${numFmt}`;
       numeroMesaFinal = numFmt;
+      // Garçom/Gestor/Adm não precisa de celular preenchido
+      nomeClienteFinal = `Mesa ${numFmt} (${usuarioLogado.nome})`;
+      celularClienteFinal = '00000000000';
     } else if (tipoAtendimento === 'mesa') {
       if (!numMesa || numMesa.trim() === '') {
         setMensagem('⚠️ Informe o NÚMERO DA MESA!');
@@ -308,19 +331,21 @@ export default function App() {
       numeroMesaFinal = 'Avulso';
     }
 
-    if (!celularCliente || celularCliente.trim() === '') {
-      setMensagem('⚠️ Informe o CELULAR!');
-      setTimeout(() => setMensagem(''), 4000);
-      return;
-    }
+    // Validação de celular e nome obrigatórios APENAS para Clientes (Autoatendimento)
+    if (!usuarioLogado) {
+      if (!celularCliente || celularCliente.trim() === '') {
+        setMensagem('⚠️ Informe o CELULAR!');
+        setTimeout(() => setMensagem(''), 4000);
+        return;
+      }
 
-    if (!nomeCliente || nomeCliente.trim() === '') {
-      setMensagem('⚠️ Informe o NOME!');
-      setTimeout(() => setMensagem(''), 4000);
-      return;
+      if (!nomeCliente || nomeCliente.trim() === '') {
+        setMensagem('⚠️ Informe o NOME!');
+        setTimeout(() => setMensagem(''), 4000);
+        return;
+      }
+      setClientesSalvos((prev) => ({ ...prev, [celularCliente]: nomeCliente }));
     }
-
-    setClientesSalvos((prev) => ({ ...prev, [celularCliente]: nomeCliente }));
 
     const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
 
@@ -329,8 +354,8 @@ export default function App() {
       local: identificadorFinal,
       tipo: mesaAlvoGarcom ? 'mesa' : tipoAtendimento,
       mesa: numeroMesaFinal,
-      cliente: nomeCliente,
-      celular: celularCliente,
+      cliente: nomeClienteFinal,
+      celular: celularClienteFinal,
       atendente: usuarioLogado ? `${usuarioLogado.nome} (${usuarioLogado.tipo})` : 'Cliente (Autoatendimento)',
       itens: carrinho,
       total: totalCalculado,
@@ -338,15 +363,15 @@ export default function App() {
       horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     };
 
-    // Abre modal com estado inicial 'enviando'
     setPedidoEnviadoSucesso(pedidoObjeto);
     setStatusEntregaPedido('enviando');
 
-    // Emite para o servidor Socket.io
     socket.emit('novo_pedido', pedidoObjeto);
-    setPedidos((prev) => [pedidoObjeto, ...prev]);
+    setPedidos((prev) => {
+      if (prev.some((p) => p.id === pedidoObjeto.id)) return prev;
+      return [pedidoObjeto, ...prev];
+    });
 
-    // Simula a confirmação real de recebimento pelo servidor / painel da cozinha em 600ms
     setTimeout(() => {
       setStatusEntregaPedido('confirmado');
     }, 600);
@@ -377,7 +402,45 @@ export default function App() {
     return acc;
   }, {});
 
+  const consultarContaCliente = (e) => {
+    e.preventDefault();
+    if (!mesaConsultaCliente || !celularConsultaCliente) {
+      setMensagem('⚠️ Informe a Mesa e o Celular cadastrado!');
+      setTimeout(() => setMensagem(''), 4000);
+      return;
+    }
+
+    const numFmt = String(mesaConsultaCliente).padStart(2, '0');
+    const chaveBuscada = `Mesa ${numFmt}`;
+
+    const comandaEncontrada = comandasAgrupadas[chaveBuscada];
+    if (!comandaEncontrada) {
+      setContaConsultada({ status: 'nao_encontrada', local: chaveBuscada });
+      return;
+    }
+
+    const pedidosDoCliente = comandaEncontrada.pedidos.filter(
+      (p) => p.celular.trim() === celularConsultaCliente.trim()
+    );
+
+    if (pedidosDoCliente.length === 0) {
+      setContaConsultada({ status: 'celular_nao_encontrado', local: chaveBuscada });
+      return;
+    }
+
+    const totalCliente = pedidosDoCliente.reduce((acc, p) => acc + p.total, 0);
+
+    setContaConsultada({
+      status: 'encontrado',
+      local: chaveBuscada,
+      cliente: pedidosDoCliente[0].cliente,
+      pedidos: pedidosDoCliente,
+      total: totalCliente
+    });
+  };
+
   const encerarComanda = (localChave) => {
+    socket.emit('fechar_comanda', localChave);
     setPedidos((prev) => prev.filter((p) => {
       let chave = p.local;
       if (!chave && p.mesa && p.mesa !== 'Avulso') {
@@ -437,7 +500,7 @@ export default function App() {
                   onClick={() => setAbaAtiva('cardapio')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cardapio' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
                 >
-                  📋 Cardápio
+                  📋 Cardápio & Consulta
                 </button>
 
                 {usuarioLogado && (
@@ -524,138 +587,206 @@ export default function App() {
         )}
 
         {abaAtiva === 'cardapio' && (
-          <main className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-            <section className="md:col-span-2 space-y-4">
-              {mesaAlvoGarcom && (
-                <div className="bg-cyan-500/20 border border-cyan-500 p-3 rounded-xl flex justify-between items-center text-xs">
-                  <span className="font-bold text-cyan-300">🛎️ Lançando pedido para a <strong>Mesa {mesaAlvoGarcom}</strong> (Atendente: {usuarioLogado?.nome})</span>
-                  <button onClick={() => setMesaAlvoGarcom(null)} className="text-rose-400 font-bold underline">Cancelar</button>
-                </div>
-              )}
-
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-                {categoriasUnicas.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setCategoriaSel(cat)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
-                      categoriaSel === cat ? 'bg-cyan-500 text-slate-950 border-cyan-500' : 'bg-slate-900 text-slate-400 border-slate-800'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 gap-3">
-                {cardapioFiltrado.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => abrirDetalhesItem(item)}
-                    className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center gap-4 hover:border-cyan-500/40 cursor-pointer transition-all"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-sm text-slate-100">{item.nome}</h3>
-                        <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md">{item.categoria}</span>
-                      </div>
-                      {item.descricao && <p className="text-xs text-slate-400 mt-1">{item.descricao}</p>}
-                      <p className="text-cyan-400 font-extrabold text-sm mt-2">R$ {item.preco.toFixed(2)}</p>
-                    </div>
-                    <button className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold px-3 py-2 rounded-lg text-xs">
-                      + Opções
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="bg-slate-900 p-4 rounded-xl border border-slate-800 h-fit sticky top-4 space-y-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-100 mb-3 pb-2 border-b border-slate-800 flex justify-between items-center">
-                  <span>Sua Sacola</span>
-                  <span className="bg-cyan-500/10 text-cyan-400 text-xs px-2 py-0.5 rounded-full">{carrinho.length} itens</span>
+          <main className="max-w-4xl mx-auto space-y-6">
+            {!usuarioLogado && (
+              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl">
+                <h2 className="text-sm font-bold text-cyan-400 mb-2 flex items-center gap-1.5">
+                  🔍 Consultar Meus Pedidos & Valor da Conta
                 </h2>
+                <form onSubmit={consultarContaCliente} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <input
+                    type="number"
+                    placeholder="Número da Mesa (Ex: 01)"
+                    value={mesaConsultaCliente}
+                    onChange={(e) => setMesaConsultaCliente(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
+                  />
+                  <input
+                    type="tel"
+                    placeholder="Seu Celular Cadastrado"
+                    value={celularConsultaCliente}
+                    onChange={(e) => setCelularConsultaCliente(e.target.value)}
+                    className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-white"
+                  />
+                  <button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow">
+                    Consultar Conta 🔎
+                  </button>
+                </form>
 
-                {carrinho.length === 0 ? (
-                  <p className="text-slate-500 text-xs py-4 text-center">Nenhum item selecionado.</p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {carrinho.map((item, index) => (
-                      <div key={index} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs">
-                        <div className="flex justify-between items-center font-bold">
-                          <span className="text-slate-300">{item.quantidade}x {item.nome}</span>
-                          <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
+                {contaConsultada && (
+                  <div className="mt-4 p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3 text-xs">
+                    {contaConsultada.status === 'nao_encontrada' && (
+                      <p className="text-rose-400 font-bold">❌ Nenhuma comanda aberta encontrada para a Mesa {contaConsultada.local}.</p>
+                    )}
+                    {contaConsultada.status === 'celular_nao_encontrado' && (
+                      <p className="text-amber-400 font-bold">⚠️ A Mesa {contaConsultada.local} está aberta, mas nenhum pedido foi localizado com este número de celular.</p>
+                    )}
+                    {contaConsultada.status === 'encontrado' && (
+                      <>
+                        <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                          <div>
+                            <span className="font-black text-cyan-400 text-sm">{contaConsultada.local}</span>
+                            <span className="text-slate-300 ml-2 font-bold">({contaConsultada.cliente})</span>
+                          </div>
+                          <span className="text-base font-black text-emerald-400">Total: R$ {contaConsultada.total.toFixed(2)}</span>
                         </div>
-                        {item.ponto && <p className="text-[11px] text-cyan-400 mt-0.5">📍 {item.ponto}</p>}
-                      </div>
-                    ))}
+                        <div className="space-y-2 max-h-36 overflow-y-auto">
+                          {contaConsultada.pedidos.map((p, idx) => (
+                            <div key={idx} className="bg-slate-900 p-2 rounded border border-slate-800">
+                              <span className="text-[10px] text-slate-400 block mb-1">Pedido às {p.horario} • Status: <strong className="text-cyan-300">{p.status}</strong></span>
+                              {p.itens.map((it, i) => (
+                                <div key={i} className="flex justify-between text-slate-300">
+                                  <span>{it.quantidade}x {it.nome} {it.ponto ? `(${it.ponto})` : ''}</span>
+                                  <span className="text-cyan-400 font-semibold">R$ {it.precoTotalItem.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
+            )}
 
-              <div className="border-t border-slate-800 pt-3 space-y-3">
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3">
-                  <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">Identificação do Pedido</span>
-                  
-                  {!mesaAlvoGarcom && (
-                    <>
-                      <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
-                        <button type="button" onClick={() => setTipoAtendimento('mesa')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'mesa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Mesa</button>
-                        <button type="button" onClick={() => setTipoAtendimento('avulso')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'avulso' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Avulso</button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <section className="md:col-span-2 space-y-4">
+                {mesaAlvoGarcom && (
+                  <div className="bg-cyan-500/20 border border-cyan-500 p-3 rounded-xl flex justify-between items-center text-xs">
+                    <span className="font-bold text-cyan-300">🛎️ Lançando pedido para a <strong>Mesa {mesaAlvoGarcom}</strong> (Atendente: {usuarioLogado?.nome})</span>
+                    <button onClick={() => setMesaAlvoGarcom(null)} className="text-rose-400 font-bold underline">Cancelar</button>
+                  </div>
+                )}
+
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                  {categoriasUnicas.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setCategoriaSel(cat)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
+                        categoriaSel === cat ? 'bg-cyan-500 text-slate-950 border-cyan-500' : 'bg-slate-900 text-slate-400 border-slate-800'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {cardapioFiltrado.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => abrirDetalhesItem(item)}
+                      className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex justify-between items-center gap-4 hover:border-cyan-500/40 cursor-pointer transition-all"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-sm text-slate-100">{item.nome}</h3>
+                          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md">{item.categoria}</span>
+                        </div>
+                        {item.descricao && <p className="text-xs text-slate-400 mt-1">{item.descricao}</p>}
+                        <p className="text-cyan-400 font-extrabold text-sm mt-2">R$ {item.preco.toFixed(2)}</p>
                       </div>
+                      <button className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold px-3 py-2 rounded-lg text-xs">
+                        + Opções
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
 
-                      {tipoAtendimento === 'mesa' ? (
+              <section className="bg-slate-900 p-4 rounded-xl border border-slate-800 h-fit sticky top-4 space-y-4">
+                <div>
+                  <h2 className="text-base font-bold text-slate-100 mb-3 pb-2 border-b border-slate-800 flex justify-between items-center">
+                    <span>Sua Sacola</span>
+                    <span className="bg-cyan-500/10 text-cyan-400 text-xs px-2 py-0.5 rounded-full">{carrinho.length} itens</span>
+                  </h2>
+
+                  {carrinho.length === 0 ? (
+                    <p className="text-slate-500 text-xs py-4 text-center">Nenhum item selecionado.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {carrinho.map((item, index) => (
+                        <div key={index} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs">
+                          <div className="flex justify-between items-center font-bold">
+                            <span className="text-slate-300">{item.quantidade}x {item.nome}</span>
+                            <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
+                          </div>
+                          {item.ponto && <p className="text-[11px] text-cyan-400 mt-0.5">📍 {item.ponto}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-slate-800 pt-3 space-y-3">
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3">
+                    <span className="text-xs font-bold text-cyan-400 block border-b border-slate-800 pb-1">Identificação do Pedido</span>
+                    
+                    {!mesaAlvoGarcom && (
+                      <>
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
+                          <button type="button" onClick={() => setTipoAtendimento('mesa')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'mesa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Mesa</button>
+                          <button type="button" onClick={() => setTipoAtendimento('avulso')} className={`py-1 text-xs font-bold rounded-md ${tipoAtendimento === 'avulso' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}>Avulso</button>
+                        </div>
+
+                        {tipoAtendimento === 'mesa' ? (
+                          <input
+                            type="number"
+                            placeholder="Número da Mesa (Ex: 04)"
+                            value={numMesa}
+                            onChange={(e) => setNumMesa(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg"
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder="Identificação (Ex: Balcão 01)"
+                            value={identificacaoAvulsa}
+                            onChange={(e) => setIdentificacaoAvulsa(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg"
+                          />
+                        )}
+                      </>
+                    )}
+
+                    {!usuarioLogado && (
+                      <>
                         <input
-                          type="number"
-                          placeholder="Número da Mesa (Ex: 04)"
-                          value={numMesa}
-                          onChange={(e) => setNumMesa(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg"
+                          type="tel"
+                          placeholder="Celular do Cliente"
+                          value={celularCliente}
+                          onChange={handleCelularChange}
+                          className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
                         />
-                      ) : (
+
                         <input
                           type="text"
-                          placeholder="Identificação (Ex: Balcão 01)"
-                          value={identificacaoAvulsa}
-                          onChange={(e) => setIdentificacaoAvulsa(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 text-cyan-400 font-bold text-xs p-2 rounded-lg"
+                          placeholder="Nome do Cliente"
+                          value={nomeCliente}
+                          onChange={(e) => setNomeCliente(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
                         />
-                      )}
-                    </>
-                  )}
+                      </>
+                    )}
+                  </div>
 
-                  <input
-                    type="tel"
-                    placeholder="Celular do Cliente"
-                    value={celularCliente}
-                    onChange={handleCelularChange}
-                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
-                  />
+                  <div className="flex justify-between text-sm font-bold">
+                    <span className="text-slate-400">Total:</span>
+                    <span className="text-cyan-400 text-base">R$ {totalCarrinho.toFixed(2)}</span>
+                  </div>
 
-                  <input
-                    type="text"
-                    placeholder="Nome do Cliente"
-                    value={nomeCliente}
-                    onChange={(e) => setNomeCliente(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-xs p-2 rounded-lg"
-                  />
+                  <button
+                    onClick={enviarPedido}
+                    disabled={carrinho.length === 0}
+                    className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 text-slate-950 font-extrabold py-3 rounded-xl text-xs shadow-lg"
+                  >
+                    Enviar Pedido para Cozinha
+                  </button>
                 </div>
-
-                <div className="flex justify-between text-sm font-bold">
-                  <span className="text-slate-400">Total:</span>
-                  <span className="text-cyan-400 text-base">R$ {totalCarrinho.toFixed(2)}</span>
-                </div>
-
-                <button
-                  onClick={enviarPedido}
-                  disabled={carrinho.length === 0}
-                  className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 text-slate-950 font-extrabold py-3 rounded-xl text-xs shadow-lg"
-                >
-                  Enviar Pedido para Cozinha
-                </button>
-              </div>
-            </section>
+              </section>
+            </div>
           </main>
         )}
 
@@ -716,45 +847,57 @@ export default function App() {
               <p className="text-slate-500 text-xs">Nenhuma comanda aberta no momento.</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(comandasAgrupadas).map(([local, info]) => (
-                  <div key={local} className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3">
-                    <div className="flex justify-between items-start pb-2 border-b border-slate-800">
-                      <div>
-                        <span className="bg-cyan-500 text-slate-950 font-black px-2 py-0.5 rounded text-xs">{local}</span>
-                        <span className="text-xs text-slate-300 font-bold ml-2">{info.cliente}</span>
-                        <span className="text-[10px] text-slate-500 block">📞 {info.celular}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs font-black text-cyan-400 block">R$ {info.totalComanda.toFixed(2)}</span>
-                        <button 
-                          onClick={() => { 
-                            setMesaFechamento(info); 
-                            setTipoDivisao('total'); 
-                            setQtdPessoas(1); 
-                            setPagamentosMesa({});
-                            setItensSelecionadosFechamento({});
-                          }} 
-                          className="mt-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2.5 py-1 rounded text-[11px] font-bold hover:bg-emerald-500 hover:text-slate-950 transition-all"
-                        >
-                          📊 Fechar Mesa
-                        </button>
-                      </div>
-                    </div>
+                {Object.entries(comandasAgrupadas).map(([local, info]) => {
+                  const podeFechar = usuarioLogado.tipo === 'adm' || usuarioLogado.tipo === 'gestor' || info.pedidos.some(p => p.atendente.includes(usuarioLogado.nome));
 
-                    <div className="space-y-1 max-h-36 overflow-y-auto">
-                      {info.pedidos.map((p, idx) => (
-                        <div key={idx} className="text-[11px] text-slate-400 bg-slate-950 p-2 rounded">
-                          {p.itens.map((it, i) => (
-                            <div key={i} className="flex justify-between">
-                              <span>{it.quantidade}x {it.nome}</span>
-                              <span className="text-cyan-400">R$ {it.precoTotalItem.toFixed(2)}</span>
-                            </div>
-                          ))}
+                  return (
+                    <div key={local} className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3">
+                      <div className="flex justify-between items-start pb-2 border-b border-slate-800">
+                        <div>
+                          <span className="bg-cyan-500 text-slate-950 font-black px-2 py-0.5 rounded text-xs">{local}</span>
+                          <span className="text-xs text-slate-300 font-bold ml-2">{info.cliente}</span>
+                          <span className="text-[10px] text-slate-500 block">📞 {info.celular}</span>
                         </div>
-                      ))}
+                        <div className="text-right">
+                          <span className="text-xs font-black text-cyan-400 block">R$ {info.totalComanda.toFixed(2)}</span>
+                          {podeFechar ? (
+                            <button 
+                              onClick={() => { 
+                                setMesaFechamento(info); 
+                                setTipoDivisao('total'); 
+                                setQtdPessoas(1); 
+                                setPagamentosMesa({});
+                                setItensSelecionadosFechamento({});
+                              }} 
+                              className="mt-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2.5 py-1 rounded text-[11px] font-bold hover:bg-emerald-500 hover:text-slate-950 transition-all"
+                            >
+                              📊 Fechar Mesa
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 block mt-1">Fechamento restrito</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1 max-h-36 overflow-y-auto">
+                        {info.pedidos.map((p, idx) => (
+                          <div key={idx} className="text-[11px] text-slate-400 bg-slate-950 p-2 rounded space-y-1">
+                            <div className="flex justify-between text-slate-300 font-bold border-b border-slate-900 pb-0.5">
+                              <span>👤 {p.cliente} ({p.atendente})</span>
+                              <span className="text-cyan-400">R$ {p.total.toFixed(2)}</span>
+                            </div>
+                            {p.itens.map((it, i) => (
+                              <div key={i} className="flex justify-between pl-2">
+                                <span>{it.quantidade}x {it.nome} {it.ponto ? `(${it.ponto})` : ''}</span>
+                                <span className="text-cyan-300">R$ {it.precoTotalItem.toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </main>
@@ -979,7 +1122,6 @@ export default function App() {
           </div>
         )}
 
-        {/* MODAL DE CONFIRMAÇÃO DE ENTREGA (MESA E COZINHA) */}
         {pedidoEnviadoSucesso && (
           <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 z-50">
             <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-5 shadow-2xl text-center">
@@ -1005,7 +1147,7 @@ export default function App() {
                       <span className="text-cyan-400">{pedidoEnviadoSucesso.local}</span>
                       <span className="text-slate-400">{pedidoEnviadoSucesso.horario}</span>
                     </div>
-                    <p className="text-slate-300">Cliente: <strong>{pedidoEnviadoSucesso.cliente}</strong></p>
+                    <p className="text-slate-300">Cliente/Atendente: <strong>{pedidoEnviadoSucesso.cliente}</strong></p>
                     <div className="border-t border-slate-800 pt-2 space-y-1 max-h-28 overflow-y-auto">
                       {pedidoEnviadoSucesso.itens.map((it, idx) => (
                         <div key={idx} className="flex justify-between text-slate-400">
