@@ -6,6 +6,11 @@ import cors from 'cors';
 const app = express();
 app.use(cors());
 
+// Rota raiz para o Render não dar erro de "Cannot GET /"
+app.get('/', (req, res) => {
+  res.send('🧊 Era do Gelo - Servidor Backend Rodando com Sucesso! 🚀');
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
