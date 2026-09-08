@@ -199,7 +199,120 @@ export default function App() {
     } catch (erro) {
       console.error("❌ [ERRO] Função handleLogout:", erro);
     }
-  }   
+  }  
+  /**
+   * ============================================================================
+   * PACOTE 6: FUNÇÕES DE PEDIDOS, ITENS E MODAL DE OPÇÕES
+   * ============================================================================
+   */
+  function abrirDetalhesItem(item) {
+    try {
+      setItemSelecionado(item);
+      setQuantidadeModal(1);
+      setPontoCarne('Ao ponto');
+      setMolhosSelecionados([]);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função abrirDetalhesItem:", erro);
+    }
+  }
+
+  function alternarMolho(molho) {
+    try {
+      if (molho === 'Sem Molho') {
+        setMolhosSelecionados(['Sem Molho']);
+        return;
+      }
+      setMolhosSelecionados((prev) => {
+        const filtrados = prev.filter((m) => m !== 'Sem Molho');
+        return filtrados.includes(molho) ? filtrados.filter((m) => m !== molho) : [...filtrados, molho];
+      });
+    } catch (erro) {
+      console.error("❌ [ERRO] Função alternarMolho:", erro);
+    }
+  }
+
+  function confirmarAdicaoModal() {
+    try {
+      if (!itemSelecionado) return;
+      const novoItemCarrinho = {
+        ...itemSelecionado,
+        quantidade: quantidadeModal,
+        ponto: itemSelecionado.categoria === 'Espetinhos' ? pontoCarne : null,
+        molhos: molhosSelecionados,
+        precoTotalItem: itemSelecionado.preco * quantidadeModal
+      };
+      setCarrinho((prev) => [...prev, novoItemCarrinho]);
+      setItemSelecionado(null);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função confirmarAdicaoModal:", erro);
+    }
+  }
+
+  function enviarPedido() {
+    try {
+      if (carrinho.length === 0) {
+        setMensagem('⚠️ Sua sacola está vazia!');
+        setTimeout(() => setMensagem(''), 3000);
+        return;
+      }
+
+      let identificadorFinal = '';
+      let numeroMesaFinal = 'Avulso';
+      let nomeClienteFinal = nomeCliente ? nomeCliente.trim() : 'Cliente';
+
+      if (mesaAlvoGarcom) {
+        const numFmt = String(mesaAlvoGarcom).padStart(2, '0');
+        identificadorFinal = `Mesa ${numFmt}`;
+        numeroMesaFinal = numFmt;
+        nomeClienteFinal = `Mesa ${numFmt} (${usuarioLogado.nome})`;
+      } else if (tipoAtendimento === 'mesa') {
+        if (!numMesa) {
+          setMensagem('⚠️ Informe o número da mesa!');
+          setTimeout(() => setMensagem(''), 3000);
+          return;
+        }
+        const numFmt = String(numMesa).padStart(2, '0');
+        identificadorFinal = `Mesa ${numFmt}`;
+        numeroMesaFinal = numFmt;
+      } else {
+        identificadorFinal = `AVULSO: ${identificacaoAvulsa || 'Balcão'}`;
+        numeroMesaFinal = 'Avulso';
+      }
+
+      // Salva ou atualiza o cliente no banco se preencheu celular e nome
+      if (celularCliente && nomeCliente) {
+        socket.emit('salvar_cliente', { celular: celularCliente, nome: nomeCliente.trim() });
+      }
+
+      const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
+      const origemAtendimento = usuarioLogado ? `${usuarioLogado.tipo}: ${usuarioLogado.nome}` : 'Cliente (Autoatendimento)';
+
+      const pedidoObjeto = {
+        id: Date.now(),
+        local: identificadorFinal,
+        tipo: mesaAlvoGarcom ? 'mesa' : tipoAtendimento,
+        mesa: numeroMesaFinal,
+        cliente: nomeClienteFinal,
+        celular: celularCliente || 'Não informado',
+        atendente: origemAtendimento,
+        itens: carrinho,
+        total: totalCalculado,
+        status: 'Pendente',
+        entregue: false,
+        cancelado: false,
+        horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setPedidoEnviadoSucesso(pedidoObjeto);
+      socket.emit('novo_pedido', pedidoObjeto);
+      setCarrinho([]);
+      setMesaAlvoGarcom(null);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função enviarPedido:", erro);
+      setMensagem('❌ Erro ao enviar pedido. Tente novamente.');
+      setTimeout(() => setMensagem(''), 3000);
+    }
+  }
   /**
   * ============================================================================
    * PACOTE 7: FUNÇÕES DE GESTÃO DE COZINHA E GARÇOM
