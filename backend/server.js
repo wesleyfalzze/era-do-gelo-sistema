@@ -1,23 +1,16 @@
-/**
- * ============================================================================
- * PACOTE 1: IMPORTAÇÕES E CONFIGURAÇÕES DE AMBIENTE
- * ============================================================================
- */
-import express from 'express';
-import http from 'http';
-import { Server } from 'socket.io';
-import cors from 'cors';
-import { MongoClient } from 'mongodb';
+const { MongoClient, ServerApiVersion } = require('mongodb');
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const uri = process.env.MONGO_URI; // Sua string de conexão do MongoDB Atlas
 
-const MONGO_URI = process.env.MONGO_URI;
-const DB_NAME = "eradogelo";
-
-let db = null;
-let dbConectado = false;
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+  tls: true,
+  tlsAllowInvalidCertificates: true // Ajuda a contornar bloqueios de certificado SSL em alguns ambientes de hospedagem
+});
 
 /**
  * ============================================================================
