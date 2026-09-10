@@ -1,3 +1,4 @@
+import { MongoClient, ServerApiVersion } from 'mongodb';
 const { MongoClient, ServerApiVersion } = require('mongodb');
 
 const uri = process.env.MONGO_URI; // Sua string de conexão do MongoDB Atlas
