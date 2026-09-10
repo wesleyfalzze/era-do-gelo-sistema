@@ -616,3 +616,14 @@ export default function App() {
                   </button>
                 </div>
               </section>
+              /**
+ * ============================================================================
+ * PACOTE 11: VERSÃO DINÂMICA E TIMELINE DE COMPILAÇÃO (RODAPÉ)
+ * ============================================================================
+ */
+const VERSAO_COMPILACAO_DADO = (() => {
+  const agora = new Date();
+  const dataFmt = agora.toLocaleDateString('pt-BR');
+  const horaFmt = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `v3.7.1 • Compilado em ${dataFmt} às ${horaFmt}`;
+})();
