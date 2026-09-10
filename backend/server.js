@@ -1,100 +1,72 @@
+/**
+ * ============================================================================
+ * PACOTE 1: IMPORTAÇÕES, CONFIGURAÇÕES DE AMBIENTE E INICIALIZAÇÃO DO SERVIDOR
+ * ============================================================================
+ */
 import { MongoClient, ServerApiVersion } from 'mongodb';
-const { MongoClient, ServerApiVersion } = require('mongodb');
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import dotenv from 'dotenv';
 
-const uri = process.env.MONGO_URI; // Sua string de conexão do MongoDB Atlas
+dotenv.config();
 
-const client = new MongoClient(uri, {
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+const PORTA = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGO_URI;
+
+/**
+ * ============================================================================
+ * PACOTE 2: CONEXÃO COM O MONGODB ATLAS (COM SUPORTE SSL/TLS SEGURO)
+ * ============================================================================
+ */
+let db = null;
+let dbConectado = false;
+
+const client = new MongoClient(MONGO_URI, {
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
   },
   tls: true,
-  tlsAllowInvalidCertificates: true // Ajuda a contornar bloqueios de certificado SSL em alguns ambientes de hospedagem
+  tlsAllowInvalidCertificates: true
 });
 
-/**
- * ============================================================================
- * PACOTE 2: GERENCIAMENTO, TESTE DE CONEXÃO E MIDDLEWARE DE BLOQUEIO
- * ============================================================================
- */
 async function conectarBancoDados() {
   try {
-    if (!MONGO_URI || MONGO_URI.includes('xxxxx')) {
-      throw new Error("URL do MongoDB Atlas inválida ou não configurada nas variáveis de ambiente.");
-    }
-    const client = await MongoClient.connect(MONGO_URI);
-    db = client.db(DB_NAME);
+    await client.connect();
+    db = client.db('eradogelo');
     dbConectado = true;
-    console.log("🗄️ [SUCESSO] Conectado ao MongoDB Atlas com sucesso!");
+    console.log("🗄️ [SUCESSO] Conectado ao MongoDB Atlas com segurança SSL/TLS!");
   } catch (erro) {
     dbConectado = false;
-    console.error("❌ [ERRO] Falha crítica na função conectarBancoDados:", erro.message);
+    console.error("❌ [ERRO] Falha na conexão com o MongoDB:", erro.message);
   }
 }
 
 conectarBancoDados();
 
-// Middleware de bloqueio global: o sistema só funciona se o banco estiver 100% conectado
-app.use((req, res, next) => {
-  try {
-    if (req.path === '/api/status') {
-      return next();
-    }
-
-    if (!dbConectado) {
-      return res.status(503).send(`
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-          <meta charset="UTF-8">
-          <title>Era do Gelo - Sistema Indisponível</title>
-          <style>
-            body { background: #020617; color: #f8fafc; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-            .card { background: #0f172a; border: 1px solid #1e293b; padding: 30px; border-radius: 16px; text-align: center; max-width: 400px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5); }
-            h1 { color: #f43f5e; font-size: 22px; margin-bottom: 10px; }
-            p { color: #94a3b8; font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
-            .btn { background: #06b6d4; color: #020617; padding: 10px 20px; border-radius: 8px; font-weight: bold; text-decoration: none; display: inline-block; }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <h1>⚠️ Sistema Fora do Air</h1>
-            <p>O sistema não pode ser iniciado porque a conexão com o banco de dados falhou ou está instável.</p>
-            <p>Por favor, entre em contato com o suporte técnico para regularizar o serviço.</p>
-            <a href="https://wa.me/5500000000000" class="btn" target="_blank">Contatar Suporte 🛠️</a>
-          </div>
-        </body>
-        </html>
-      `);
-    }
-    next();
-  } catch (erro) {
-    console.error("❌ [ERRO] Middleware de verificação de conexão:", erro.message);
-    res.status(500).send("Erro interno no servidor.");
-  }
-});
-
+// Rota simples de status
 app.get('/api/status', (req, res) => {
-  try {
-    res.json({ conectado: dbConectado, timestamp: new Date() });
-  } catch (erro) {
-    res.status(500).json({ conectado: false, erro: erro.message });
-  }
-});
-
-app.get('/', (req, res) => {
-  res.send('🧊 Era do Gelo - Servidor Modular Rodando com Sucesso! 🚀');
-});
-
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  res.json({ conectado: dbConectado, timestamp: new Date() });
 });
 
 /**
  * ============================================================================
- * PACOTE 3: EVENTOS EM TEMPO REAL (SOCKET.IO) E INICIALIZAÇÃO DA PORTA
+ * PACOTE 3: GERENCIAMENTO DE EVENTOS EM TEMPO REAL (SOCKET.IO)
  * ============================================================================
  */
 io.on('connection', (socket) => {
@@ -190,7 +162,7 @@ io.on('connection', (socket) => {
         io.emit('atualizar_lista_pedidos', listaAtualizada);
       }
     } catch (erro) {
-      console.error("❌ [ERRO] Função novo_pedido:", erro.message);
+      console.error("❌ [ERRO] Função novo_pedido:", erro);
     }
   });
 
@@ -225,7 +197,8 @@ io.on('connection', (socket) => {
         await db.collection('pedidos').deleteMany({
           $or: [
             { local: localChave },
-            { mesa: localChave.replace('Mesa ', '') }
+            { mesa: localChave.replace('Mesa ', '') },
+            { cliente: localChave.replace('AVULSO: ', '') }
           ]
         });
 
@@ -236,7 +209,7 @@ io.on('connection', (socket) => {
         io.emit('atualizar_vendas', listaVendas);
       }
     } catch (erro) {
-      console.error("❌ [ERRO] Função fechar_comanda:", erro.message);
+      console.error("❌ [ERRO] Função fechar_comanda:", erro);
     }
   });
 
@@ -245,17 +218,11 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 10000;
-
-function iniciarServidor() {
-  try {
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 [SUCESSO] Servidor modular rodando na porta ${PORT}`);
-    });
-  } catch (erro) {
-    console.error("❌ [ERRO] Falha crítica na função iniciarServidor:", erro.message);
-    process.exit(1);
-  }
-}
-
-iniciarServidor();
+/**
+ * ============================================================================
+ * PACOTE 4: INICIALIZAÇÃO DO SERVIDOR HTTP NA PORTA CONFIGURADA
+ * ============================================================================
+ */
+server.listen(PORTA, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORTA}`);
+});
