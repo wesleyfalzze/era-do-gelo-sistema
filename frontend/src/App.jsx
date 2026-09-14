@@ -1,27 +1,51 @@
+/**
+ * ============================================================================
+ * PACOTE 1: IMPORTAÇÕES, CONFIGURAÇÕES E DADOS INICIAIS DO SISTEMA
+ * ============================================================================
+ */
 import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
+// Versão dinâmica calculada no carregamento para controle de cache
 const VERSAO_SISTEMA = (() => {
   const agora = new Date();
   const dataFmt = agora.toLocaleDateString('pt-BR');
   const horaFmt = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  return `v3.7.1 • Compilado em ${dataFmt} às ${horaFmt}`;
+  return `v3.10.0 • Compilado em ${dataFmt} às ${horaFmt}`;
 })();
 
-const TOTAL_MESAS_SALAO = 15;
+// Cardápio completo padrão pré-cadastrado
+const CARDAPIO_PADRAO_COMPLETO = [
+  { id: 101, nome: 'Espetinho de Boi (Alcatra)', categoria: 'Espetinhos', preco: 12.00, descricao: 'Carne macia com tempero especial', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
+  { id: 102, nome: 'Espetinho de Frango com Bacon', categoria: 'Espetinhos', preco: 10.00, descricao: 'Frango suculento envolvido em bacon', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
+  { id: 103, nome: 'Espetinho de Coração', categoria: 'Espetinhos', preco: 11.00, descricao: 'Coração de frango temperado', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
+  { id: 104, nome: 'Espetinho de Kafta', categoria: 'Espetinhos', preco: 11.00, descricao: 'Carne moída temperada no espeto', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
+  { id: 105, nome: 'Espetinho de Linguiça Toscana', categoria: 'Espetinhos', preco: 10.00, descricao: 'Linguiça suína artesanal', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
+  { id: 106, nome: 'Espetinho de Queijo Coalho', categoria: 'Espetinhos', preco: 13.00, descricao: 'Queijo coalho assado na brasa', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
+  { id: 107, nome: 'Espetinho de Pão de Alho', categoria: 'Espetinhos', preco: 9.00, descricao: 'Pão recheado com pasta de alho', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
+  { id: 108, nome: 'Medalhão de Boi', categoria: 'Espetinhos', preco: 14.00, descricao: 'Alcatra enrolada no bacon', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
+  
+  { id: 201, nome: 'Heineken Long Neck 330ml', categoria: 'Cervejas', preco: 10.00, descricao: 'Cerveja Puro Malte gelada', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 202, nome: 'Budweiser Long Neck 330ml', categoria: 'Cervejas', preco: 9.00, descricao: 'American Lager', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 203, nome: 'Amstel Lata 350ml', categoria: 'Cervejas', preco: 7.00, descricao: 'Puro Malte refrescante', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 204, nome: 'Skol Lata 350ml', categoria: 'Cervejas', preco: 6.00, descricao: 'A cerveja que desce redondo', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 205, nome: 'Brahma Duplo Malte Lata 350ml', categoria: 'Cervejas', preco: 7.00, descricao: 'Sabor encorpado', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 206, nome: 'Stella Artois Long Neck 330ml', categoria: 'Cervejas', preco: 10.00, descricao: 'Puro malte belga', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 207, nome: 'Original 600ml (Retornável)', categoria: 'Cervejas', preco: 15.00, descricao: 'Para mesa (Garrafa)', impressora: 'Bar 1', destino: 'bar', ativo: true },
 
-const OPCOES_MOLHOS = ['Molho Alho Caseiro', 'Molho Barbecue', 'Molho Verde / Cheiro Verde', 'Molho Picante / Pimenta', 'Sem Molho'];
-const FORMAS_PAGAMENTO = ['Dinheiro', 'PIX', 'Cartão de Crédito', 'Cartão de Débito'];
-const MOTIVOS_CANCELAMENTO = ['Não entregue', 'Recusado pelo cliente', 'Outros'];
+  { id: 301, nome: 'Coca-Cola Lata 350ml', categoria: 'Refrigerantes', preco: 6.50, descricao: 'Refrigerante sabor cola', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 302, nome: 'Coca-Cola Zero Lata 350ml', categoria: 'Refrigerantes', preco: 6.50, descricao: 'Sem açúcar', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 303, nome: 'Guaraná Antarctica Lata 350ml', categoria: 'Refrigerantes', preco: 6.00, descricao: 'O original do Brasil', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 304, nome: 'Guaraná Zero Lata 350ml', categoria: 'Refrigerantes', preco: 6.00, descricao: 'Guaraná zero açúcar', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 305, nome: 'Sprite Lata 350ml', categoria: 'Refrigerantes', preco: 6.00, descricao: 'Sabor limão', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 306, nome: 'Fanta Laranja Lata 350ml', categoria: 'Refrigerantes', preco: 6.00, descricao: 'Sabor laranja', impressora: 'Bar 1', destino: 'bar', ativo: true },
+  { id: 307, nome: 'Coca-Cola 2 Litros (Pet)', categoria: 'Refrigerantes', preco: 14.00, descricao: 'Para compartilhar na mesa', impressora: 'Bar 1', destino: 'bar', ativo: true },
 
-const CARDAPIO_PADRAO_INICIAL = [
-  { id: 1, nome: 'Espetinho de Boi (Alcatra)', categoria: 'Espetinhos', preco: 12.00, descricao: 'Carne macia', impressora: 'Cozinha 1' },
-  { id: 2, nome: 'Espetinho de Frango com Bacon', categoria: 'Espetinhos', preco: 10.00, descricao: 'Frango com bacon', impressora: 'Cozinha 1' },
-  { id: 3, nome: 'Cerveja Lata 350ml', categoria: 'Bebidas', preco: 6.00, descricao: 'Gelada', impressora: 'Cozinha 1' },
-  { id: 4, nome: 'Porção de Fritas', categoria: 'Porções', preco: 30.00, descricao: 'Batata crocante', impressora: 'Cozinha 1' }
+  { id: 401, nome: 'Porção de Fritas com Bacon e Cheddar', categoria: 'Porções', preco: 38.00, descricao: 'Batata crocante com cheddar e bacon', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
+  { id: 402, nome: 'Porção de Mandioca Frita', categoria: 'Porções', preco: 28.00, descricao: 'Mandioca macia e crocante', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true }
 ];
 
 const USUARIOS_PADRAO_INICIAL = [
@@ -31,6 +55,11 @@ const USUARIOS_PADRAO_INICIAL = [
 ];
 
 export default function App() {
+  /**
+   * ============================================================================
+   * PACOTE 2: GERENCIAMENTO DE ESTADOS E FILTROS DE PESQUISA NO BANCO
+   * ============================================================================
+   */
   const [bancoConectado, setBancoConectado] = useState(true);
   const [usuarioLogado, setUsuarioLogado] = useState(null); 
   const [modalLoginAberto, setModalLoginAberto] = useState(false);
@@ -40,25 +69,37 @@ export default function App() {
   const [erroLogin, setErroLogin] = useState('');
 
   const [listaUsuarios, setListaUsuarios] = useState(USUARIOS_PADRAO_INICIAL);
+  
+  // Estados para Edição de Usuários
+  const [editandoUserLogin, setEditandoUserLogin] = useState(null);
   const [novoUsuario, setNovoUsuario] = useState('');
   const [novoSenhaUser, setNovoSenhaUser] = useState('');
   const [novoNomeUser, setNovoNomeUser] = useState('');
   const [novoTipoUser, setNovoTipoUser] = useState('garcom');
 
   const [abaAtiva, setAbaAtiva] = useState('cardapio');
-  const [subAbaGarcom, setSubAbaGarcom] = useState('pendentes');
   const [categoriaSel, setCategoriaSel] = useState('Todas');
-  const [cardapio, setCardapio] = useState(CARDAPIO_PADRAO_INICIAL);
+  const [cardapio, setCardapio] = useState(CARDAPIO_PADRAO_COMPLETO);
   const [carrinho, setCarrinho] = useState([]);
   
   const [pedidos, setPedidos] = useState([]);
   const [historicoVendas, setHistoricoVendas] = useState([]);
   const [clientesBanco, setClientesBanco] = useState([]);
-  const [novoPedidoAlerta, setNovoPedidoAlerta] = useState(null);
+
+  // Termos de Pesquisa Geral no Banco
+  const [termoPesquisaProdutos, setTermoPesquisaProdutos] = useState('');
+  const [termoPesquisaUsuarios, setTermoPesquisaUsuarios] = useState('');
+
+  // Quantidade de Mesas configurável
+  const [totalMesasSalao, setTotalMesasSalao] = useState(() => {
+    const salva = localStorage.getItem('eradogelo_total_mesas');
+    return salva ? Number(salva) : 15;
+  });
+  const [inputTotalMesasAdm, setInputTotalMesasAdm] = useState(totalMesasSalao);
 
   const [configImpressoras, setConfigImpressoras] = useState({
     cozinha1: '\\\\SERVIDOR\\Cozinha1',
-    cozinha2: '\\\\SERVIDOR\\Cozinha2'
+    bar1: '\\\\SERVIDOR\\Bar1'
   });
 
   const hojeStr = new Date().toISOString().split('T')[0];
@@ -69,14 +110,16 @@ export default function App() {
   const [contaConsultada, setContaConsultada] = useState(null);
   const [contaSolicitadaSucesso, setContaSolicitadaSucesso] = useState(false);
 
-  const [pedidoEnviadoSucesso, setPedidoEnviadoSucesso] = useState(null);
   const [mesaAlvoGarcom, setMesaAlvoGarcom] = useState(null);
 
+  // Estados do CRUD de Produtos
+  const [editandoProdutoId, setEditandoProdutoId] = useState(null);
   const [novoNomeItem, setNovoNomeItem] = useState('');
   const [novaCategoriaItem, setNovaCategoriaItem] = useState('Espetinhos');
   const [novoPrecoItem, setNovoPrecoItem] = useState('');
   const [novaDescItem, setNovaDescItem] = useState('');
-  const [novaImpressoraItem, setNovaImpressoraItem] = useState('Cozinha 1');
+  const [novoDestinoItem, setNovoDestinoItem] = useState('cozinha');
+  const [novoAtivoItem, setNovoAtivoItem] = useState(true);
 
   const [celularCliente, setCelularCliente] = useState(() => localStorage.getItem('eradogelo_cliente_celular') || '');
   const [nomeCliente, setNomeCliente] = useState(() => localStorage.getItem('eradogelo_cliente_nome') || '');
@@ -85,10 +128,7 @@ export default function App() {
   const [itemSelecionado, setItemSelecionado] = useState(null);
   const [quantidadeModal, setQuantidadeModal] = useState(1);
   const [pontoCarne, setPontoCarne] = useState('Ao ponto');
-  const [molhosSelecionados, setMolhosSelecionados] = useState([]);
-
-  const [pedidoCancelamentoAlvo, setPedidoCancelamentoAlvo] = useState(null);
-  const [motivoCancelamentoSel, setMotivoCancelamentoSel] = useState('Não entregue');
+  const [opcaoMolhoEspetinho, setOpcaoMolhoEspetinho] = useState('Molho e farinha');
 
   const [mesaFechamento, setMesaFechamento] = useState(null);
   const [pagamentosMesa, setPagamentosMesa] = useState({});
@@ -96,6 +136,11 @@ export default function App() {
   const [modoAtendimentoSacola, setModoAtendimentoSacola] = useState('mesa');
   const [numeroMesaSacola, setNumeroMesaSacola] = useState('');
 
+  /**
+   * ============================================================================
+   * PACOTE 3: CONEXÃO SOCKET.IO E SINCRONIZAÇÃO EM TEMPO REAL
+   * ============================================================================
+   */
   useEffect(() => {
     function testarConexaoBackend() {
       fetch(`${BACKEND_URL}/api/status`)
@@ -121,19 +166,6 @@ export default function App() {
     socket.on('atualizar_clientes', (cli) => { if (cli) setClientesBanco(cli); });
     socket.on('atualizar_config_impressora', (cfg) => { if (cfg) setConfigImpressoras(cfg); });
 
-    socket.on('pedido_recebido', (novoPedido) => {
-      try {
-        if (usuarioLogado) {
-          setNovoPedidoAlerta(novoPedido);
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-          audio.play().catch(() => {});
-          setTimeout(() => setNovoPedidoAlerta(null), 8000);
-        }
-      } catch (erro) {
-        console.error("❌ [ERRO] Evento pedido_recebido:", erro);
-      }
-    });
-
     return () => {
       socket.off('connect');
       socket.off('atualizar_lista_pedidos');
@@ -142,10 +174,14 @@ export default function App() {
       socket.off('atualizar_vendas');
       socket.off('atualizar_clientes');
       socket.off('atualizar_config_impressora');
-      socket.off('pedido_recebido');
     };
-  }, [usuarioLogado]);
+  }, []);
 
+  /**
+   * ============================================================================
+   * PACOTE 4: AUTENTICAÇÃO E SESSÃO
+   * ============================================================================
+   */
   function handleLogin(e) {
     try {
       e.preventDefault();
@@ -186,6 +222,168 @@ export default function App() {
     }
   }
 
+  /**
+   * ============================================================================
+   * PACOTE 5: GESTÃO E ALTERAÇÃO DE CADASTROS (PRODUTOS, USUÁRIOS E MESAS)
+   * ============================================================================
+   */
+  function alterarQuantidadeMesas(e) {
+    e.preventDefault();
+    const qtd = Number(inputTotalMesasAdm);
+    if (!qtd || qtd < 1) {
+      setMensagem('⚠️ Informe um número válido de mesas!');
+      setTimeout(() => setMensagem(''), 3000);
+      return;
+    }
+    setTotalMesasSalao(qtd);
+    localStorage.setItem('eradogelo_total_mesas', qtd);
+    setMensagem(`🪑 Salão atualizado para ${qtd} mesas!`);
+    setTimeout(() => setMensagem(''), 3000);
+  }
+
+  function cadastrarOuEditarProduto(e) {
+    try {
+      e.preventDefault();
+      if (!novoNomeItem || !novoPrecoItem) return;
+
+      let novoCardapio = [...cardapio];
+
+      if (editandoProdutoId) {
+        novoCardapio = novoCardapio.map(item => {
+          if (item.id === editandoProdutoId) {
+            return {
+              ...item,
+              nome: novoNomeItem,
+              categoria: novaCategoriaItem,
+              preco: Number(novoPrecoItem),
+              descricao: novaDescItem,
+              destino: novoDestinoItem,
+              ativo: novoAtivoItem,
+              impressora: novoDestinoItem === 'cozinha' ? 'Cozinha 1' : novoDestinoItem === 'bar' ? 'Bar 1' : 'Balcão'
+            };
+          }
+          return item;
+        });
+      } else {
+        const novo = {
+          id: Date.now(),
+          nome: novoNomeItem,
+          categoria: novaCategoriaItem,
+          preco: Number(novoPrecoItem),
+          descricao: novaDescItem,
+          destino: novoDestinoItem,
+          ativo: novoAtivoItem,
+          impressora: novoDestinoItem === 'cozinha' ? 'Cozinha 1' : novoDestinoItem === 'bar' ? 'Bar 1' : 'Balcão'
+        };
+        novoCardapio.push(novo);
+      }
+
+      setCardapio(novoCardapio);
+      socket.emit('salvar_cardapio', novoCardapio);
+
+      setEditandoProdutoId(null);
+      setNovoNomeItem('');
+      setNovoPrecoItem('');
+      setNovaDescItem('');
+      setNovoAtivoItem(true);
+      setMensagem('✅ Produto salvo com sucesso!');
+      setTimeout(() => setMensagem(''), 3000);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função cadastrarOuEditarProduto:", erro);
+    }
+  }
+
+  function carregarProdutoParaEdicao(item) {
+    setEditandoProdutoId(item.id);
+    setNovoNomeItem(item.nome);
+    setNovaCategoriaItem(item.categoria);
+    setNovoPrecoItem(item.preco);
+    setNovaDescItem(item.descricao || '');
+    setNovoDestinoItem(item.destino || 'cozinha');
+    setNovoAtivoItem(item.ativo !== false);
+  }
+
+  function alternarAtivacaoProduto(id) {
+    const novoCardapio = cardapio.map(item => {
+      if (item.id === id) {
+        return { ...item, ativo: !item.ativo };
+      }
+      return item;
+    });
+    setCardapio(novoCardapio);
+    socket.emit('salvar_cardapio', novoCardapio);
+  }
+
+  function cadastrarOuEditarFuncionario(e) {
+    try {
+      e.preventDefault();
+      if (!novoUsuario || !novoSenhaUser || !novoNomeUser) return;
+
+      let novaLista = [...listaUsuarios];
+
+      if (editandoUserLogin) {
+        novaLista = novaLista.map(u => {
+          if (u.usuario === editandoUserLogin) {
+            return {
+              ...u,
+              nome: novoNomeUser.trim(),
+              senha: novoSenhaUser,
+              tipo: novoTipoUser
+            };
+          }
+          return u;
+        });
+      } else {
+        const existe = novaLista.find(u => u.usuario.toLowerCase() === novoUsuario.trim().toLowerCase());
+        if (existe) {
+          setMensagem('⚠️ Este usuário de login já existe!');
+          setTimeout(() => setMensagem(''), 3000);
+          return;
+        }
+        const novo = { usuario: novoUsuario.trim(), senha: novoSenhaUser, nome: novoNomeUser.trim(), tipo: novoTipoUser };
+        novaLista.push(novo);
+      }
+
+      setListaUsuarios(novaLista);
+      socket.emit('salvar_usuarios', novaLista);
+
+      setEditandoUserLogin(null);
+      setNovoUsuario('');
+      setNovoSenhaUser('');
+      setNovoNomeUser('');
+      setMensagem('✅ Colaborador salvo com sucesso!');
+      setTimeout(() => setMensagem(''), 3000);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função cadastrarOuEditarFuncionario:", erro);
+    }
+  }
+
+  function carregarUsuarioParaEdicao(user) {
+    setEditandoUserLogin(user.usuario);
+    setNovoUsuario(user.usuario);
+    setNovoSenhaUser(user.senha);
+    setNovoNomeUser(user.nome);
+    setNovoTipoUser(user.tipo);
+  }
+
+  function removerFuncionario(userLogin) {
+    if (userLogin === 'admin') {
+      setMensagem('⚠️ Não é permitido remover o administrador principal!');
+      setTimeout(() => setMensagem(''), 3000);
+      return;
+    }
+    const novaLista = listaUsuarios.filter(u => u.usuario !== userLogin);
+    setListaUsuarios(novaLista);
+    socket.emit('salvar_usuarios', novaLista);
+    setMensagem('🗑️ Colaborador removido.');
+    setTimeout(() => setMensagem(''), 3000);
+  }
+
+  /**
+   * ============================================================================
+   * PACOTE 6: PEDIDOS, SACOLA, COZINHA E CAIXA
+   * ============================================================================
+   */
   function handleCelularChange(e) {
     try {
       const tel = e.target.value;
@@ -216,7 +414,7 @@ export default function App() {
     setItemSelecionado(item);
     setQuantidadeModal(1);
     setPontoCarne('Ao ponto');
-    setMolhosSelecionados([]);
+    setOpcaoMolhoEspetinho('Molho e farinha');
   }
 
   function adicionarAoCarrinho() {
@@ -228,7 +426,7 @@ export default function App() {
       ...itemSelecionado,
       quantidade: quantidadeModal,
       ponto: itemSelecionado.categoria === 'Espetinhos' ? pontoCarne : null,
-      molhos: molhosSelecionados,
+      complementoMolho: itemSelecionado.categoria === 'Espetinhos' ? opcaoMolhoEspetinho : null,
       precoTotalItem
     };
 
@@ -295,11 +493,12 @@ export default function App() {
         horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
 
-      setPedidoEnviadoSucesso(pedidoObjeto);
       socket.emit('novo_pedido', pedidoObjeto);
       setCarrinho([]);
       setMesaAlvoGarcom(null);
       setNumeroMesaSacola('');
+      setMensagem('✅ Pedido enviado com sucesso!');
+      setTimeout(() => setMensagem(''), 3000);
     } catch (erro) {
       console.error("❌ [ERRO] Função enviarPedido:", erro);
       setMensagem('❌ Erro ao enviar pedido.');
@@ -314,95 +513,6 @@ export default function App() {
       setTimeout(() => setMensagem(''), 3000);
     } catch (erro) {
       console.error("❌ [ERRO] Função atualizarStatusPedido:", erro);
-    }
-  }
-
-  function confirmarCancelamentoPedido() {
-    try {
-      if (!pedidoCancelamentoAlvo) return;
-      socket.emit('atualizar_status_pedido', {
-        idPedido: pedidoCancelamentoAlvo.id,
-        status: 'Cancelado',
-        entregue: false,
-        cancelado: true,
-        motivoCancelamento: motivoCancelamentoSel
-      });
-      setMensagem(`⚠️ Pedido cancelado (${motivoCancelamentoSel})`);
-      setPedidoCancelamentoAlvo(null);
-      setTimeout(() => setMensagem(''), 3000);
-    } catch (erro) {
-      console.error("❌ [ERRO] Função confirmarCancelamentoPedido:", erro);
-    }
-  }
-
-  function cadastrarFuncionario(e) {
-    try {
-      e.preventDefault();
-      if (!novoUsuario || !novoSenhaUser || !novoNomeUser) return;
-      const novo = { usuario: novoUsuario.trim(), senha: novoSenhaUser, nome: novoNomeUser.trim(), tipo: novoTipoUser };
-      const novaLista = [...listaUsuarios, novo];
-      setListaUsuarios(novaLista);
-      socket.emit('salvar_usuarios', novaLista);
-      setNovoUsuario(''); setNovoSenhaUser(''); setNovoNomeUser('');
-      setMensagem('✅ Colaborador cadastrado!');
-      setTimeout(() => setMensagem(''), 3000);
-    } catch (erro) {
-      console.error("❌ [ERRO] Função cadastrarFuncionario:", erro);
-    }
-  }
-
-  function removerFuncionario(userLogin) {
-    try {
-      if (userLogin === 'admin') return;
-      const novaLista = listaUsuarios.filter((u) => u.usuario !== userLogin);
-      setListaUsuarios(novaLista);
-      socket.emit('salvar_usuarios', novaLista);
-    } catch (erro) {
-      console.error("❌ [ERRO] Função removerFuncionario:", erro);
-    }
-  }
-
-  function adicionarItemCardapio(e) {
-    try {
-      e.preventDefault();
-      if (!novoNomeItem || !novoPrecoItem) return;
-      const novo = {
-        id: Date.now(),
-        nome: novoNomeItem,
-        categoria: novaCategoriaItem,
-        preco: Number(novoPrecoItem),
-        descricao: novaDescItem,
-        impressora: novaImpressoraItem
-      };
-      const novoCardapio = [...cardapio, novo];
-      setCardapio(novoCardapio);
-      socket.emit('salvar_cardapio', novoCardapio);
-      setNovoNomeItem(''); setNovoPrecoItem(''); setNovaDescItem('');
-      setMensagem('✅ Produto salvo!');
-      setTimeout(() => setMensagem(''), 3000);
-    } catch (erro) {
-      console.error("❌ [ERRO] Função adicionarItemCardapio:", erro);
-    }
-  }
-
-  function removerItemCardapio(id) {
-    try {
-      const novoCardapio = cardapio.filter((i) => i.id !== id);
-      setCardapio(novoCardapio);
-      socket.emit('salvar_cardapio', novoCardapio);
-    } catch (erro) {
-      console.error("❌ [ERRO] Função removerItemCardapio:", erro);
-    }
-  }
-
-  function salvarConfigImpressoras(e) {
-    try {
-      e.preventDefault();
-      socket.emit('salvar_config_impressora', configImpressoras);
-      setMensagem('🖨️ Caminhos salvos!');
-      setTimeout(() => setMensagem(''), 3000);
-    } catch (erro) {
-      console.error("❌ [ERRO] Função salvarConfigImpressoras:", erro);
     }
   }
 
@@ -470,15 +580,29 @@ export default function App() {
   function selecionarMesaParaLancar(numMesaStr) {
     try {
       setMesaAlvoGarcom(numMesaStr);
-      setNumMesa(numMesaStr);
       setAbaAtiva('cardapio');
     } catch (erro) {
       console.error("❌ [ERRO] Função selecionarMesaParaLancar:", erro);
     }
   }
 
-  const categoriasUnicas = ['Todas', ...new Set(cardapio.map((item) => item.categoria))];
-  const cardapioFiltrado = categoriaSel === 'Todas' ? cardapio : cardapio.filter((i) => i.categoria === categoriaSel);
+  // Cálculos dinâmicos, filtros de busca no banco local/socket
+  const cardapioVisivel = cardapio.filter(i => i.ativo !== false);
+  const categoriasUnicas = ['Todas', ...new Set(cardapioVisivel.map((item) => item.categoria))];
+  
+  const cardapioFiltrado = cardapioVisivel.filter(i => {
+    const matchCat = categoriaSel === 'Todas' || i.categoria === categoriaSel;
+    const matchBusca = i.nome.toLowerCase().includes(termoPesquisaProdutos.toLowerCase()) || 
+                       i.categoria.toLowerCase().includes(termoPesquisaProdutos.toLowerCase());
+    return matchCat && matchBusca;
+  });
+
+  const usuariosFiltrados = listaUsuarios.filter(u => 
+    u.nome.toLowerCase().includes(termoPesquisaUsuarios.toLowerCase()) || 
+    u.usuario.toLowerCase().includes(termoPesquisaUsuarios.toLowerCase()) ||
+    u.tipo.toLowerCase().includes(termoPesquisaUsuarios.toLowerCase())
+  );
+
   const totalCarrinho = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
 
   const comandasAgrupadas = pedidos.reduce((acc, pedido) => {
@@ -496,7 +620,7 @@ export default function App() {
     return acc;
   }, {});
 
-  const listaMesas = Array.from({ length: TOTAL_MESAS_SALAO }, (_, i) => {
+  const listaMesas = Array.from({ length: totalMesasSalao }, (_, i) => {
     const num = String(i + 1).padStart(2, '0');
     const chave = `Mesa ${num}`;
     const ocupada = Boolean(comandasAgrupadas[chave]);
@@ -509,8 +633,15 @@ export default function App() {
   });
   const faturamentoPeriodo = vendasFiltradasPorPeriodo.reduce((acc, v) => acc + v.total, 0);
 
+  /**
+   * ============================================================================
+   * PACOTE 7: RENDERIZAÇÃO DA INTERFACE DO USUÁRIO (JSX COMPLETO)
+   * ============================================================================
+   */
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans">
+      
+      {/* 1. Cabeçalho Superior */}
       <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 px-4 py-3 shadow-md">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
           <div className="flex items-center gap-3">
@@ -544,13 +675,13 @@ export default function App() {
                   onClick={() => setAbaAtiva('salao')} 
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'salao' ? 'bg-cyan-500 text-slate-950 shadow-lg' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
-                  🪑 Salão
+                  🪑 Salão ({totalMesasSalao})
                 </button>
                 <button 
                   onClick={() => setAbaAtiva('cozinha')} 
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${abaAtiva === 'cozinha' ? 'bg-cyan-500 text-slate-950 shadow-lg' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
-                  🍳 Cozinha
+                  🍳 Cozinha/Bar
                 </button>
                 <button 
                   onClick={() => setAbaAtiva('caixa')} 
@@ -595,12 +726,14 @@ export default function App() {
         </div>
       </header>
 
+      {/* Alerta Instantâneo */}
       {mensagem && (
         <div className="bg-cyan-500 text-slate-950 font-bold px-4 py-2 text-center text-xs shadow-lg animate-pulse">
           {mensagem}
         </div>
       )}
 
+      {/* 2. Conteúdo Principal */}
       <main className="max-w-6xl mx-auto w-full p-4 flex-grow">
         {mesaAlvoGarcom && (
           <div className="bg-amber-950 border border-amber-800 p-3 rounded-xl mb-4 flex justify-between items-center text-xs">
@@ -614,9 +747,28 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA CARDÁPIO & PESQUISA DE PRODUTOS */}
         {abaAtiva === 'cardapio' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
+              
+              {/* Barra de Pesquisa Rápida de Produtos */}
+              <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex gap-2 items-center">
+                <span className="text-sm">🔍</span>
+                <input 
+                  type="text" 
+                  placeholder="Pesquisar produto no banco por nome ou categoria..." 
+                  value={termoPesquisaProdutos}
+                  onChange={(e) => setTermoPesquisaProdutos(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-white"
+                />
+                {termoPesquisaProdutos && (
+                  <button onClick={() => setTermoPesquisaProdutos('')} className="text-xs bg-slate-800 px-2.5 py-1 rounded text-slate-400">
+                    Limpar
+                  </button>
+                )}
+              </div>
+
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {categoriasUnicas.map((cat, idx) => (
                   <button 
@@ -638,6 +790,9 @@ export default function App() {
                         <span className="text-cyan-400 font-extrabold text-sm">R$ {item.preco.toFixed(2)}</span>
                       </div>
                       <p className="text-slate-400 text-xs mt-1">{item.descricao}</p>
+                      <span className="inline-block mt-2 text-[10px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded border border-slate-800">
+                        Destino: {item.destino ? item.destino.toUpperCase() : 'COZINHA'}
+                      </span>
                     </div>
                     <button 
                       onClick={() => abrirModalItem(item)} 
@@ -658,7 +813,11 @@ export default function App() {
                 ) : (
                   carrinho.map((item, idx) => (
                     <div key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs flex justify-between">
-                      <span>{item.quantidade}x {item.nome} {item.ponto ? `(${item.ponto})` : ''}</span>
+                      <span>
+                        {item.quantidade}x {item.nome} 
+                        {item.ponto ? ` (${item.ponto})` : ''} 
+                        {item.complementoMolho ? ` [${item.complementoMolho}]` : ''}
+                      </span>
                       <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
                     </div>
                   ))
@@ -687,10 +846,12 @@ export default function App() {
 
                 {(!mesaAlvoGarcom && modoAtendimentoSacola === 'mesa') && (
                   <div className="space-y-1">
-                    <label className="text-[11px] text-cyan-400 block font-bold">Número da Mesa:</label>
+                    <label className="text-[11px] text-cyan-400 block font-bold">Número da Mesa (1 a {totalMesasSalao}):</label>
                     <input 
                       type="number" 
-                      placeholder="Ex: 05" 
+                      min="1"
+                      max={totalMesasSalao}
+                      placeholder={`Ex: 01`} 
                       value={numeroMesaSacola} 
                       onChange={(e) => setNumeroMesaSacola(e.target.value)} 
                       className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-cyan-300 font-bold" 
@@ -737,6 +898,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA CONSULTAR CONTA */}
         {abaAtiva === 'consultar' && (
           <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
             <h2 className="text-lg font-bold text-center">Consultar Conta da Mesa</h2>
@@ -745,6 +907,8 @@ export default function App() {
                 <label className="text-xs text-slate-400 block mb-1">Número da Mesa:</label>
                 <input 
                   type="number" 
+                  min="1"
+                  max={totalMesasSalao}
                   placeholder="Ex: 5" 
                   value={mesaConsultaCliente} 
                   onChange={(e) => setMesaConsultaCliente(e.target.value)} 
@@ -788,9 +952,16 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA SALÃO */}
         {abaAtiva === 'salao' && usuarioLogado && (
           <div className="space-y-4">
-            <h2 className="text-base font-bold">Salão - Visitas & Mesas</h2>
+            <div className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800">
+              <div>
+                <h2 className="text-base font-bold">Salão - Visitas & Mesas</h2>
+                <span className="text-xs text-slate-400">Capacidade atual configurada: <b>{totalMesasSalao} Mesas</b></span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               {listaMesas.map((mesa) => (
                 <div 
@@ -820,12 +991,13 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA COZINHA / BAR */}
         {abaAtiva === 'cozinha' && usuarioLogado && (
           <div className="space-y-4">
-            <h2 className="text-base font-bold">Painel de Cozinha</h2>
+            <h2 className="text-base font-bold">Painel de Cozinha, Bar e Balcão</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {pedidos.filter(p => !p.cancelado && p.status !== 'Entregue').length === 0 ? (
-                <p className="text-slate-500 text-xs py-8 text-center col-span-full">Nenhum pedido pendente na cozinha.</p>
+                <p className="text-slate-500 text-xs py-8 text-center col-span-full">Nenhum pedido pendente nos setores.</p>
               ) : (
                 pedidos.filter(p => !p.cancelado && p.status !== 'Entregue').map(pedido => (
                   <div key={pedido.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
@@ -835,8 +1007,13 @@ export default function App() {
                     </div>
                     <div className="space-y-1 text-xs">
                       {pedido.itens.map((i, idx) => (
-                        <div key={idx} className="flex justify-between">
-                          <span>{i.quantidade}x {i.nome} {i.ponto ? `(${i.ponto})` : ''}</span>
+                        <div key={idx} className="flex justify-between border-b border-slate-900/50 pb-1">
+                          <span>
+                            <b>{i.quantidade}x</b> {i.nome} 
+                            {i.ponto ? ` (${i.ponto})` : ''} 
+                            {i.complementoMolho ? ` [${i.complementoMolho}]` : ''}
+                          </span>
+                          <span className="text-[10px] text-slate-500 uppercase">{i.destino || 'cozinha'}</span>
                         </div>
                       ))}
                     </div>
@@ -861,6 +1038,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA CAIXA */}
         {abaAtiva === 'caixa' && usuarioLogado && (
           <div className="space-y-6">
             <h2 className="text-base font-bold">Gestão de Caixa & Comandas</h2>
@@ -915,6 +1093,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA PAINEL GARÇOM */}
         {abaAtiva === 'garcom' && usuarioLogado && (
           <div className="space-y-4">
             <h2 className="text-base font-bold">Painel do Garçom</h2>
@@ -934,24 +1113,213 @@ export default function App() {
           </div>
         )}
 
+        {/* ABA PAINEL ADM (COM PESQUISA E EDIÇÃO COMPLETA DE TODOS OS CADASTROS) */}
         {abaAtiva === 'config' && usuarioLogado && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Bloco 1: Configuração de Mesas */}
+            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 h-fit md:col-span-2">
+              <h3 className="text-xs font-bold text-cyan-400">🪑 Configurar Quantidade de Mesas do Salão</h3>
+              <form onSubmit={alterarQuantidadeMesas} className="flex gap-3 items-end">
+                <div className="flex-grow">
+                  <label className="text-[11px] text-slate-400 block mb-1">Total de Mesas Ativas no Estabelecimento:</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    max="100"
+                    value={inputTotalMesasAdm} 
+                    onChange={(e) => setInputTotalMesasAdm(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded text-xs text-white font-bold" 
+                    required 
+                  />
+                </div>
+                <button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2.5 rounded text-xs">
+                  Salvar Nova Quantidade
+                </button>
+              </form>
+            </div>
+
+            {/* Bloco 2: Gestão, Pesquisa e Edição de Produtos */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4">
-              <h3 className="text-xs font-bold text-cyan-400">Cadastrar Colaborador</h3>
-              <form onSubmit={cadastrarFuncionario} className="space-y-3">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <h3 className="text-xs font-bold text-cyan-400">
+                  {editandoProdutoId ? '✏️ Editando Produto' : '➕ Cadastrar / Editar Produto'}
+                </h3>
+                {editandoProdutoId && (
+                  <button 
+                    onClick={() => {
+                      setEditandoProdutoId(null);
+                      setNovoNomeItem('');
+                      setNovoPrecoItem('');
+                      setNovaDescItem('');
+                      setNovoAtivoItem(true);
+                    }} 
+                    className="text-[10px] bg-slate-800 text-rose-400 px-2 py-1 rounded font-bold"
+                  >
+                    Cancelar Edição
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={cadastrarOuEditarProduto} className="space-y-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">Nome do Produto:</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Heineken Long Neck 330ml" 
+                    value={novoNomeItem} 
+                    onChange={(e) => setNovoNomeItem(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                    required 
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Categoria:</label>
+                    <select 
+                      value={novaCategoriaItem} 
+                      onChange={(e) => setNovaCategoriaItem(e.target.value)} 
+                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white"
+                    >
+                      <option value="Espetinhos">Espetinhos</option>
+                      <option value="Cervejas">Cervejas</option>
+                      <option value="Refrigerantes">Refrigerantes</option>
+                      <option value="Porções">Porções</option>
+                      <option value="Bebidas">Bebidas</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Preço (R$):</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      placeholder="0.00" 
+                      value={novoPrecoItem} 
+                      onChange={(e) => setNovoPrecoItem(e.target.value)} 
+                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                      required 
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">Descrição Curta:</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Gelada 330ml" 
+                    value={novaDescItem} 
+                    onChange={(e) => setNovaDescItem(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Destino (Setor):</label>
+                    <select 
+                      value={novoDestinoItem} 
+                      onChange={(e) => setNovoDestinoItem(e.target.value)} 
+                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white font-bold text-cyan-300"
+                    >
+                      <option value="cozinha">🍳 Cozinha</option>
+                      <option value="bar">🍺 Bar</option>
+                      <option value="balcao">🏪 Balcão</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Status no Cardápio:</label>
+                    <button 
+                      type="button"
+                      onClick={() => setNovoAtivoItem(!novoAtivoItem)}
+                      className={`w-full py-2 rounded text-xs font-bold border transition-all ${novoAtivoItem ? 'bg-emerald-950 border-emerald-800 text-emerald-400' : 'bg-rose-950 border-rose-800 text-rose-400'}`}
+                    >
+                      {novoAtivoItem ? '🟢 Ativo (Visível)' : '🔴 Inativo (Oculto)'}
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2.5 rounded text-xs shadow-md">
+                  {editandoProdutoId ? '💾 Atualizar Produto' : '✨ Cadastrar Produto'}
+                </button>
+              </form>
+
+              {/* Caixa de Pesquisa de Produtos na Configuração */}
+              <div className="mt-4 pt-3 border-t border-slate-800 space-y-2">
+                <input 
+                  type="text" 
+                  placeholder="🔍 Pesquisar produto para editar..." 
+                  value={termoPesquisaProdutos}
+                  onChange={(e) => setTermoPesquisaProdutos(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white"
+                />
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                  {cardapio.filter(p => p.nome.toLowerCase().includes(termoPesquisaProdutos.toLowerCase())).map(prod => (
+                    <div key={prod.id} className="bg-slate-950 p-2 rounded border border-slate-800 flex justify-between items-center text-xs">
+                      <div className="truncate pr-2">
+                        <span className={`font-bold ${prod.ativo !== false ? 'text-white' : 'text-slate-500 line-through'}`}>
+                          {prod.nome}
+                        </span>
+                        <span className="text-[10px] text-cyan-400 ml-2">R$ {prod.preco.toFixed(2)}</span>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button 
+                          onClick={() => alternarAtivacaoProduto(prod.id)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${prod.ativo !== false ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'}`}
+                        >
+                          {prod.ativo !== false ? 'Ativo' : 'Inativo'}
+                        </button>
+                        <button 
+                          onClick={() => carregarProdutoParaEdicao(prod)}
+                          className="bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2 py-0.5 rounded text-[10px] font-bold"
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco 3: Gestão, Pesquisa e Edição de Colaboradores */}
+            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 h-fit">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <h3 className="text-xs font-bold text-cyan-400">
+                  {editandoUserLogin ? '✏️ Editando Colaborador' : '👤 Cadastrar / Editar Colaborador'}
+                </h3>
+                {editandoUserLogin && (
+                  <button 
+                    onClick={() => {
+                      setEditandoUserLogin(null);
+                      setNovoUsuario('');
+                      setNovoSenhaUser('');
+                      setNovoNomeUser('');
+                    }} 
+                    className="text-[10px] bg-slate-800 text-rose-400 px-2 py-1 rounded font-bold"
+                  >
+                    Cancelar Edição
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={cadastrarOuEditarFuncionario} className="space-y-3">
                 <input 
                   type="text" 
                   placeholder="Nome Completo" 
                   value={novoNomeUser} 
                   onChange={(e) => setNovoNomeUser(e.target.value)} 
                   className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                  required
                 />
                 <input 
                   type="text" 
                   placeholder="Usuário de Login" 
                   value={novoUsuario} 
+                  disabled={editandoUserLogin !== null}
                   onChange={(e) => setNovoUsuario(e.target.value)} 
-                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white disabled:opacity-50" 
+                  required
                 />
                 <input 
                   type="password" 
@@ -959,6 +1327,7 @@ export default function App() {
                   value={novoSenhaUser} 
                   onChange={(e) => setNovoSenhaUser(e.target.value)} 
                   className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                  required
                 />
                 <select 
                   value={novoTipoUser} 
@@ -970,72 +1339,86 @@ export default function App() {
                   <option value="adm">Administrador</option>
                 </select>
                 <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2 rounded text-xs">
-                  Cadastrar Colaborador
+                  {editandoUserLogin ? '💾 Atualizar Colaborador' : '✨ Cadastrar Colaborador'}
                 </button>
               </form>
+
+              {/* Caixa de Pesquisa de Usuários */}
+              <div className="mt-4 pt-3 border-t border-slate-800 space-y-2">
+                <input 
+                  type="text" 
+                  placeholder="🔍 Pesquisar usuário..." 
+                  value={termoPesquisaUsuarios}
+                  onChange={(e) => setTermoPesquisaUsuarios(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white"
+                />
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                  {usuariosFiltrados.map(user => (
+                    <div key={user.usuario} className="bg-slate-950 p-2 rounded border border-slate-800 flex justify-between items-center text-xs">
+                      <div>
+                        <span className="font-bold text-white">{user.nome}</span>
+                        <span className="text-[10px] text-slate-400 block">Login: {user.usuario} ({user.tipo})</span>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button 
+                          onClick={() => carregarUsuarioParaEdicao(user)}
+                          className="bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2 py-0.5 rounded text-[10px] font-bold"
+                        >
+                          Editar
+                        </button>
+                        {user.usuario !== 'admin' && (
+                          <button 
+                            onClick={() => removerFuncionario(user.usuario)}
+                            className="bg-rose-950 text-rose-400 px-2 py-0.5 rounded text-[10px] font-bold"
+                          >
+                            Excluir
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4">
-              <h3 className="text-xs font-bold text-cyan-400">Adicionar Produto ao Cardápio</h3>
-              <form onSubmit={adicionarItemCardapio} className="space-y-3">
-                <input 
-                  type="text" 
-                  placeholder="Nome do Produto" 
-                  value={novoNomeItem} 
-                  onChange={(e) => setNovoNomeItem(e.target.value)} 
-                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
-                />
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  placeholder="Preço (R$)" 
-                  value={novoPrecoItem} 
-                  onChange={(e) => setNovoPrecoItem(e.target.value)} 
-                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
-                />
-                <input 
-                  type="text" 
-                  placeholder="Descrição Curta" 
-                  value={novaDescItem} 
-                  onChange={(e) => setNovaDescItem(e.target.value)} 
-                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
-                />
-                <select 
-                  value={novaCategoriaItem} 
-                  onChange={(e) => setNovaCategoriaItem(e.target.value)} 
-                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white"
-                >
-                  <option value="Espetinhos">Espetinhos</option>
-                  <option value="Bebidas">Bebidas</option>
-                  <option value="Porções">Porções</option>
-                </select>
-                <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2 rounded text-xs">
-                  Salvar Produto
-                </button>
-              </form>
-            </div>
           </div>
         )}
       </main>
 
+      {/* 3. Modal de Item */}
       {itemSelecionado && (
         <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl max-w-sm w-full space-y-4">
-            <h3 className="font-bold text-sm">{itemSelecionado.nome}</h3>
+            <h3 className="font-bold text-sm text-cyan-300">{itemSelecionado.nome}</h3>
             
             {itemSelecionado.categoria === 'Espetinhos' && (
-              <div className="space-y-1">
-                <label className="text-xs text-slate-400 block">Ponto da Carne:</label>
-                <select 
-                  value={pontoCarne} 
-                  onChange={(e) => setPontoCarne(e.target.value)} 
-                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white"
-                >
-                  <option value="Mal passado">Mal passado</option>
-                  <option value="Ao ponto">Ao ponto</option>
-                  <option value="Bem passado">Bem passado</option>
-                </select>
-              </div>
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400 block">Ponto da Carne:</label>
+                  <select 
+                    value={pontoCarne} 
+                    onChange={(e) => setPontoCarne(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white"
+                  >
+                    <option value="Mal passado">Mal passado</option>
+                    <option value="Ao ponto">Ao ponto</option>
+                    <option value="Bem passado">Bem passado</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400 block">Opção de Molho / Farinha:</label>
+                  <select 
+                    value={opcaoMolhoEspetinho} 
+                    onChange={(e) => setOpcaoMolhoEspetinho(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-cyan-300 font-bold"
+                  >
+                    <option value="Molho e farinha">Molho e farinha</option>
+                    <option value="Farinha">Somente Farinha</option>
+                    <option value="Puro">Puro (Sem molho e sem farinha)</option>
+                  </select>
+                </div>
+              </>
             )}
 
             <div className="space-y-1">
@@ -1045,7 +1428,7 @@ export default function App() {
                 min="1" 
                 value={quantidadeModal} 
                 onChange={(e) => setQuantidadeModal(Number(e.target.value))} 
-                className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white font-bold" 
               />
             </div>
 
@@ -1061,6 +1444,7 @@ export default function App() {
         </div>
       )}
 
+      {/* 4. Modal de Login */}
       {modalLoginAberto && (
         <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-sm w-full space-y-4">
@@ -1103,6 +1487,7 @@ export default function App() {
         </div>
       )}
 
+      {/* 5. Modal de Fechamento de Comanda */}
       {mesaFechamento && (
         <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl max-w-md w-full space-y-4">
@@ -1111,7 +1496,7 @@ export default function App() {
             
             <div className="space-y-2">
               <label className="text-xs text-slate-400 block">Formas de Pagamento:</label>
-              {FORMAS_PAGAMENTO.map(forma => (
+              {['Dinheiro', 'PIX', 'Cartão de Crédito', 'Cartão de Débito'].map(forma => (
                 <div key={forma} className="flex justify-between items-center bg-slate-950 p-2 rounded text-xs">
                   <span>{forma}</span>
                   <input 
@@ -1138,6 +1523,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Rodapé Dinâmico */}
       <footer className="w-full py-2 px-4 border-t border-slate-900 bg-slate-950/60 text-center">
         <span className="text-[10px] text-slate-500 tracking-wider">
           Era do Gelo • {VERSAO_SISTEMA}
