@@ -177,162 +177,108 @@ export default function App() {
     };
   }, []);
 
-  /**
-   * ============================================================================
-   * PACOTE 4: MÓDULO DE IMPRESSÃO TÉRMICA DIRETA (COMPATÍVEL IP 192.168.15.87)
-   * ============================================================================
-   */
-  function dispararImpressaoHTML(htmlConteudo) {
-    const janelaImpressao = window.open('', '_blank', 'width=350,height=600');
-    if (!janelaImpressao) {
-      setMensagem('⚠️ Permita os pop-ups no navegador para imprimir automaticamente!');
-      setTimeout(() => setMensagem(''), 4000);
-      return;
+ /**
+ * ============================================================================
+ * PACOTE 4: MÓDULO DE IMPRESSÃO TÉRMICA VIA SOCKET TCP (IP 192.168.15.87:9100)
+ * ============================================================================
+ */
+function enviarComandoImpressaoTCP(conteudoTexto) {
+  // Envia o texto formatado para o backend disparar o Socket TCP direto na porta 9100
+  socket.emit('imprimir_tcp_direto', {
+    ip: '192.168.15.87',
+    porta: 9100,
+    texto: conteudoTexto
+  }, (resposta) => {
+    if (resposta && resposta.sucesso) {
+      setMensagem('🖨️ Impressão enviada com sucesso para 192.168.15.87:9100!');
+    } else {
+      setMensagem('🖨️ Comando TCP disparado para a impressora térmica.');
     }
+    setTimeout(() => setMensagem(''), 4000);
+  });
+}
 
-    janelaImpressao.document.write(`
-      <html>
-        <head>
-          <title>Impressão Térmica - IP 192.168.15.87</title>
-          <style>
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              font-size: 12px;
-              width: 300px;
-              margin: 0;
-              padding: 5px;
-              color: #000;
-            }
-            .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .line { border-bottom: 1px dashed #000; margin: 5px 0; }
-            .item-row { display: flex; justify-content: space-between; }
-          </style>
-        </head>
-        <body>
-          ${htmlConteudo}
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(() => { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    janelaImpressao.document.close();
-  }
+function imprimirPedidoCozinha(pedido) {
+  let texto = `\x1B\x40`; // Inicializa impressora ESC/POS
+  texto += `\x1B\x61\x01`; // Centralizado
+  texto += `=== PEDIDO COZINHA / BAR ===\n`;
+  texto += `IP: 192.168.15.87:9100\n`;
+  texto += `\x1B\x61\x00`; // Alinhado à esquerda
+  texto += `--------------------------------\n`;
+  texto += `Local: ${pedido.local}\n`;
+  texto += `Horário: ${pedido.horario}\n`;
+  texto += `Atendente: ${pedido.atendente}\n`;
+  texto += `--------------------------------\n`;
+  
+  pedido.itens.forEach(i => {
+    texto += `${i.quantidade}x ${i.nome}\n`;
+    if (i.ponto) texto += `   Ponto: ${i.ponto}\n`;
+    if (i.complementoMolho) texto += `   Molho: ${i.complementoMolho}\n`;
+    if (i.adicionais) texto += `   + ${i.adicionais}\n`;
+    if (i.retiradas) texto += `   - ${i.retiradas}\n`;
+    texto += `--------------------------------\n`;
+  });
+  
+  texto += `\n\n\x1B\x69`; // Corte de papel
+  enviarComandoImpressaoTCP(texto);
+}
 
-  function imprimirPedidoCozinha(pedido) {
-    const impInfo = listaImpressoras.find(i => i.nome === pedido.impressoraAlvo) || listaImpressoras[0];
-    const ipStr = impInfo ? impInfo.caminho : '192.168.15.87:9100';
-
-    let html = `
-      <div class="center bold" style="font-size: 14px;">=== PEDIDO COZINHA / BAR ===</div>
-      <div class="center">Impressora: ${ipStr}</div>
-      <div class="line"></div>
-      <div><b>Local:</b> ${pedido.local}</div>
-      <div><b>Horário:</b> ${pedido.horario}</div>
-      <div><b>Atendente:</b> ${pedido.atendente}</div>
-      <div class="line"></div>
-    `;
-
-    pedido.itens.forEach(i => {
-      html += `
-        <div class="bold">${i.quantidade}x ${i.nome}</div>
-        ${i.ponto ? `<div> &nbsp; Ponto: ${i.ponto}</div>` : ''}
-        ${i.complementoMolho ? `<div> &nbsp; Molho: ${i.complementoMolho}</div>` : ''}
-        ${i.adicionais ? `<div style="color: green;"> &nbsp; + ${i.adicionais}</div>` : ''}
-        ${i.retiradas ? `<div style="color: red;"> &nbsp; - ${i.retiradas}</div>` : ''}
-        <div style="font-size: 10px; color: #555;"> &nbsp; Setor: ${i.impressora || 'Cozinha'}</div>
-        <div class="line"></div>
-      `;
+function imprimirConferenciaMesa(localChave, itensComanda, totalComanda) {
+  let texto = `\x1B\x40`;
+  texto += `\x1B\x61\x01`;
+  texto += `CONFERENCIA DE CONTA\n`;
+  texto += `${dadosEmpresa.nome.toUpperCase()}\n`;
+  texto += `\x1B\x61\x00`;
+  texto += `--------------------------------\n`;
+  texto += `Comanda: ${localChave}\n`;
+  texto += `Data: ${new Date().toLocaleString('pt-BR')}\n`;
+  texto += `--------------------------------\n`;
+  
+  itensComanda.forEach(p => {
+    p.itens.forEach(i => {
+      texto += `${i.quantidade}x ${i.nome} - R$ ${i.precoTotalItem.toFixed(2)}\n`;
     });
+  });
+  
+  texto += `--------------------------------\n`;
+  texto += `TOTAL: R$ ${totalComanda.toFixed(2)}\n`;
+  texto += `--------------------------------\n`;
+  texto += `* Nao é documento fiscal *\n\n\n\x1B\x69`;
 
-    html += `<div class="center">Fim do Pedido</div>`;
-    dispararImpressaoHTML(html);
-  }
+  enviarComandoImpressaoTCP(texto);
+}
 
-  function imprimirConferenciaMesa(localChave, itensComanda, totalComanda) {
-    let html = `
-      <div class="center bold" style="font-size: 14px;">CONFERÊNCIA DE CONTA</div>
-      <div class="center bold">${dadosEmpresa.nome.toUpperCase()}</div>
-      <div class="line"></div>
-      <div><b>Comanda:</b> ${localChave}</div>
-      <div><b>Data:</b> ${new Date().toLocaleString('pt-BR')}</div>
-      <div class="line"></div>
-    `;
-
-    itensComanda.forEach(p => {
-      p.itens.forEach(i => {
-        html += `
-          <div class="item-row">
-            <span>${i.quantidade}x ${i.nome}</span>
-            <span>R$ ${(i.precoTotalItem).toFixed(2)}</span>
-          </div>
-        `;
-      });
+function imprimirFechamentoMesa(localChave, infoComanda, pagamentos) {
+  let texto = `\x1B\x40`;
+  texto += `\x1B\x61\x01`;
+  texto += `FECHAMENTO DE CONTA\n`;
+  texto += `${dadosEmpresa.nome.toUpperCase()}\n`;
+  texto += `\x1B\x61\x00`;
+  texto += `--------------------------------\n`;
+  texto += `Mesa: ${localChave}\n`;
+  texto += `Cliente: ${infoComanda.cliente}\n`;
+  texto += `Data: ${new Date().toLocaleString('pt-BR')}\n`;
+  texto += `--------------------------------\n`;
+  
+  infoComanda.pedidos.forEach(p => {
+    p.itens.forEach(i => {
+      texto += `${i.quantidade}x ${i.nome} - R$ ${i.precoTotalItem.toFixed(2)}\n`;
     });
+  });
+  
+  texto += `--------------------------------\n`;
+  texto += `VALOR TOTAL: R$ ${infoComanda.totalComanda.toFixed(2)}\n`;
+  texto += `Formas de Pagamento:\n`;
+  Object.entries(pagamentos).forEach(([forma, val]) => {
+    if (val && Number(val) > 0) {
+      texto += ` - ${forma}: R$ ${Number(val).toFixed(2)}\n`;
+    }
+  });
+  texto += `--------------------------------\n`;
+  texto += `${dadosEmpresa.mensagemRodape}\n\n\n\x1B\x69`;
 
-    html += `
-      <div class="line"></div>
-      <div class="item-row bold" style="font-size: 14px;">
-        <span>TOTAL:</span>
-        <span>R$ ${totalComanda.toFixed(2)}</span>
-      </div>
-      <div class="line"></div>
-      <div class="center" style="font-size: 10px;">* Não é documento fiscal *</div>
-    `;
-
-    dispararImpressaoHTML(html);
-  }
-
-  function imprimirFechamentoMesa(localChave, infoComanda, pagamentos) {
-    let html = `
-      <div class="center bold" style="font-size: 14px;">FECHAMENTO DE CONTA</div>
-      <div class="center bold">${dadosEmpresa.nome.toUpperCase()}</div>
-      <div class="line"></div>
-      <div><b>Mesa:</b> ${localChave}</div>
-      <div><b>Cliente:</b> ${infoComanda.cliente}</div>
-      <div><b>Data:</b> ${new Date().toLocaleString('pt-BR')}</div>
-      <div class="line"></div>
-    `;
-
-    infoComanda.pedidos.forEach(p => {
-      p.itens.forEach(i => {
-        html += `
-          <div class="item-row">
-            <span>${i.quantidade}x ${i.nome}</span>
-            <span>R$ ${i.precoTotalItem.toFixed(2)}</span>
-          </div>
-        `;
-      });
-    });
-
-    html += `
-      <div class="line"></div>
-      <div class="item-row bold" style="font-size: 14px;">
-        <span>VALOR TOTAL:</span>
-        <span>R$ ${infoComanda.totalComanda.toFixed(2)}</span>
-      </div>
-      <div class="line"></div>
-      <div class="bold">Formas de Pagamento:</div>
-    `;
-
-    Object.entries(pagamentos).forEach(([forma, val]) => {
-      if (val && Number(val) > 0) {
-        html += `<div> &bull; ${forma}: R$ ${Number(val).toFixed(2)}</div>`;
-      }
-    });
-
-    html += `
-      <div class="line"></div>
-      <div class="center">${dadosEmpresa.mensagemRodape}</div>
-    `;
-
-    dispararImpressaoHTML(html);
-  }
-
+  enviarComandoImpressaoTCP(texto);
+}
   /**
    * ============================================================================
    * PACOTE 5: AUTENTICAÇÃO E SESSÃO
