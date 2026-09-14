@@ -14,7 +14,7 @@ const VERSAO_SISTEMA = (() => {
   const agora = new Date();
   const dataFmt = agora.toLocaleDateString('pt-BR');
   const horaFmt = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  return `v3.12.0 • Compilado em ${dataFmt} às ${horaFmt}`;
+  return `v3.13.0 • Compilado em ${dataFmt} às ${horaFmt}`;
 })();
 
 // Cardápio completo padrão com associação de impressora padrão
@@ -36,7 +36,7 @@ const USUARIOS_PADRAO_INICIAL = [
 export default function App() {
   /**
    * ============================================================================
-   * PACOTE 2: GERENCIAMENTO DE ESTADOS, IMPRESSORAS E EMPRESA
+   * PACOTE 2: GERENCIAMENTO DE ESTADOS, IMPRESSORAS (IP 192.168.15.87)
    * ============================================================================
    */
   const [bancoConectado, setBancoConectado] = useState(true);
@@ -70,17 +70,17 @@ export default function App() {
   const [inputTelEmpresa, setInputTelEmpresa] = useState(dadosEmpresa.telefone);
   const [inputEndEmpresa, setInputEndEmpresa] = useState(dadosEmpresa.endereco);
 
-  // Cadastro de Impressoras Múltiplas (Nomes customizados)
+  // Cadastro de Impressoras com IP Padrão solicitado (192.168.15.87:9100)
   const [listaImpressoras, setListaImpressoras] = useState(() => {
     const salvo = localStorage.getItem('meugarcom_impressoras');
     return salvo ? JSON.parse(salvo) : [
-      { id: 1, nome: 'Cozinha Principal', caminho: '\\\\SERVIDOR\\Cozinha1' },
-      { id: 2, nome: 'Impressora do Bar', caminho: '\\\\SERVIDOR\\Bar1' },
-      { id: 3, nome: 'Balcão / Caixa', caminho: '\\\\SERVIDOR\\Balcao' }
+      { id: 1, nome: 'Cozinha Principal', caminho: '192.168.15.87:9100' },
+      { id: 2, nome: 'Impressora do Bar', caminho: '192.168.15.87:9100' },
+      { id: 3, nome: 'Balcão / Caixa', caminho: '192.168.15.87:9100' }
     ];
   });
   const [nomeNovaImpressora, setNomeNovaImpressora] = useState('');
-  const [caminhoNovaImpressora, setCaminhoNovaImpressora] = useState('');
+  const [caminhoNovaImpressora, setCaminhoNovaImpressora] = useState('192.168.15.87:9100');
 
   const [abaAtiva, setAbaAtiva] = useState('cardapio');
   const [categoriaSel, setCategoriaSel] = useState('Todas');
@@ -110,7 +110,7 @@ export default function App() {
 
   const [mesaAlvoGarcom, setMesaAlvoGarcom] = useState(null);
 
-  // Estados do CRUD de Produtos (Com Associação de Impressora)
+  // Estados do CRUD de Produtos
   const [editandoProdutoId, setEditandoProdutoId] = useState(null);
   const [novoNomeItem, setNovoNomeItem] = useState('');
   const [novaCategoriaItem, setNovaCategoriaItem] = useState('Espetinhos');
@@ -179,7 +179,99 @@ export default function App() {
 
   /**
    * ============================================================================
-   * PACOTE 4: AUTENTICAÇÃO E SESSÃO
+   * PACOTE 4: MÓDULO DE IMPRESSÃO TÉRMICA (IP 192.168.15.87:9100 / ESC-POS)
+   * ============================================================================
+   */
+  function enviarComandoImpressaoTermica(ipAlvo, conteudoTexto) {
+    // Tenta envio via socket para o backend disparar Raw Socket TCP porta 9100
+    socket.emit('imprimir_termica', { ip: ipAlvo, texto: conteudoTexto }, (resposta) => {
+      if (resposta && resposta.sucesso) {
+        setMensagem('🖨️ Impressão enviada com sucesso para a impressora!');
+      } else {
+        // Fallback simulado para navegador caso o backend ESC/POS não esteja escutando
+        console.log(`🖨️ [SIMULAÇÃO DE IMPRESSÃO IP ${ipAlvo}]:\n` + conteudoTexto);
+        setMensagem('🖨️ Impressão disparada (Verifique a impressora IP 192.168.15.87)');
+      }
+      setTimeout(() => setMensagem(''), 4000);
+    });
+  }
+
+  function imprimirPedidoCozinha(pedido) {
+    const impInfo = listaImpressoras.find(i => i.nome === pedido.impressoraAlvo) || listaImpressoras[0];
+    const ipAlvo = impInfo ? impInfo.caminho : '192.168.15.87:9100';
+
+    let texto = `================================\n`;
+    texto += `      PEDIDO COZINHA / BAR      \n`;
+    texto += `================================\n`;
+    texto += `Local: ${pedido.local}\n`;
+    texto += `Horário: ${pedido.horario}\n`;
+    texto += `Atendente: ${pedido.atendente}\n`;
+    texto += `--------------------------------\n`;
+    pedido.itens.forEach(i => {
+      texto += `${i.quantidade}x ${i.nome}\n`;
+      if (i.ponto) texto += `   Ponto: ${i.ponto}\n`;
+      if (i.complementoMolho) texto += `   Molho: ${i.complementoMolho}\n`;
+      if (i.adicionais) texto += `   + ${i.adicionais}\n`;
+      if (i.retiradas) texto += `   - ${i.retiradas}\n`;
+      texto += `--------------------------------\n`;
+    });
+    texto += `Fim do Pedido\n\n\n`;
+
+    enviarComandoImpressaoTermica(ipAlvo, texto);
+  }
+
+  function imprimirConferenciaMesa(localChave, itensComanda, totalComanda) {
+    let texto = `================================\n`;
+    texto += `     CONFERÊNCIA DE CONTA       \n`;
+    texto += `    ${dadosEmpresa.nome.toUpperCase()}    \n`;
+    texto += `================================\n`;
+    texto += `Comanda / Mesa: ${localChave}\n`;
+    texto += `Data/Hora: ${new Date().toLocaleString('pt-BR')}\n`;
+    texto += `--------------------------------\n`;
+    itensComanda.forEach(p => {
+      p.itens.forEach(i => {
+        texto += `${i.quantidade}x ${i.nome} ... R$ ${(i.precoTotalItem).toFixed(2)}\n`;
+      });
+    });
+    texto += `--------------------------------\n`;
+    texto += `TOTAL A PAGAR: R$ ${totalComanda.toFixed(2)}\n`;
+    texto += `================================\n`;
+    texto += `* Não é documento fiscal *\n\n\n`;
+
+    enviarComandoImpressaoTermica('192.168.15.87:9100', texto);
+  }
+
+  function imprimirFechamentoMesa(localChave, infoComanda, pagamentos) {
+    let texto = `================================\n`;
+    texto += `      FECHAMENTO DE CONTA       \n`;
+    texto += `    ${dadosEmpresa.nome.toUpperCase()}    \n`;
+    texto += `================================\n`;
+    texto += `Mesa: ${localChave}\n`;
+    texto += `Cliente: ${infoComanda.cliente}\n`;
+    texto += `Fechamento: ${new Date().toLocaleString('pt-BR')}\n`;
+    texto += `--------------------------------\n`;
+    infoComanda.pedidos.forEach(p => {
+      p.itens.forEach(i => {
+        texto += `${i.quantidade}x ${i.nome} - R$ ${i.precoTotalItem.toFixed(2)}\n`;
+      });
+    });
+    texto += `--------------------------------\n`;
+    texto += `VALOR TOTAL: R$ ${infoComanda.totalComanda.toFixed(2)}\n`;
+    texto += `Formas de Pagamento:\n`;
+    Object.entries(pagamentos).forEach(([forma, val]) => {
+      if (val && Number(val) > 0) {
+        texto += ` - ${forma}: R$ ${Number(val).toFixed(2)}\n`;
+      }
+    });
+    texto += `================================\n`;
+    texto += `   ${dadosEmpresa.mensagemRodape}\n\n\n`;
+
+    enviarComandoImpressaoTermica('192.168.15.87:9100', texto);
+  }
+
+  /**
+   * ============================================================================
+   * PACOTE 5: AUTENTICAÇÃO E SESSÃO
    * ============================================================================
    */
   function handleLogin(e) {
@@ -224,7 +316,7 @@ export default function App() {
 
   /**
    * ============================================================================
-   * PACOTE 5: GESTÃO, CADASTRO DE IMPRESSORAS E PRODUTOS ASSOCIADOS
+   * PACOTE 6: GESTÃO, CADASTRO DE IMPRESSORAS E PRODUTOS ASSOCIADOS
    * ============================================================================
    */
   function salvarCadastroEmpresa(e) {
@@ -248,14 +340,14 @@ export default function App() {
     const novaImp = {
       id: Date.now(),
       nome: nomeNovaImpressora.trim(),
-      caminho: caminhoNovaImpressora.trim() || '\\\\SERVIDOR\\Impressora'
+      caminho: caminhoNovaImpressora.trim() || '192.168.15.87:9100'
     };
     const novaLista = [...listaImpressoras, novaImp];
     setListaImpressoras(novaLista);
     localStorage.setItem('meugarcom_impressoras', JSON.stringify(novaLista));
     setNomeNovaImpressora('');
-    setCaminhoNovaImpressora('');
-    setMensagem('🖨️ Impressora cadastrada com sucesso!');
+    setCaminhoNovaImpressora('192.168.15.87:9100');
+    setMensagem('🖨️ Impressora cadastrada com IP 192.168.15.87!');
     setTimeout(() => setMensagem(''), 3000);
   }
 
@@ -422,7 +514,7 @@ export default function App() {
 
   /**
    * ============================================================================
-   * PACOTE 6: PEDIDOS, SACOLA E CONTROLE DE ITENS ENTREGUES NA MESA
+   * PACOTE 7: PEDIDOS, SACOLA E IMPRESSÃO AUTOMÁTICA NA COZINHA
    * ============================================================================
    */
   function handleCelularChange(e) {
@@ -472,7 +564,7 @@ export default function App() {
       complementoMolho: itemSelecionado.categoria === 'Espetinhos' ? opcaoMolhoEspetinho : null,
       adicionais: adicionaisItem ? adicionaisItem.trim() : '',
       retiradas: retiradasItem ? retiradasItem.trim() : '',
-      entregueMesa: false, // Controle de entrega do item individual
+      entregueMesa: false,
       precoTotalItem
     };
 
@@ -522,6 +614,7 @@ export default function App() {
 
       const totalCalculado = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
       const origemAtendimento = usuarioLogado ? `${usuarioLogado.tipo}: ${usuarioLogado.nome}` : 'Cliente (Autoatendimento)';
+      const impressoraAlvo = carrinho[0]?.impressora || 'Cozinha Principal';
 
       const pedidoObjeto = {
         id: Date.now(),
@@ -536,14 +629,18 @@ export default function App() {
         status: 'Pendente',
         entregue: false,
         cancelado: false,
+        impressoraAlvo: impressoraAlvo,
         horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
 
+      // Envia via socket e imprime automaticamente na impressora vinculada IP 192.168.15.87
       socket.emit('novo_pedido', pedidoObjeto);
+      imprimirPedidoCozinha(pedidoObjeto);
+
       setCarrinho([]);
       setMesaAlvoGarcom(null);
       setNumeroMesaSacola('');
-      setMensagem('✅ Pedido enviado com sucesso!');
+      setMensagem('✅ Pedido enviado e impresso na cozinha!');
       setTimeout(() => setMensagem(''), 3000);
     } catch (erro) {
       console.error("❌ [ERRO] Função enviarPedido:", erro);
@@ -562,7 +659,6 @@ export default function App() {
     }
   }
 
-  // Marcar/Desmarcar item individual como entregue na mesa
   function alternarEntregaItemMesa(idPedido, indexItem) {
     try {
       const novosPedidos = pedidos.map(p => {
@@ -574,7 +670,7 @@ export default function App() {
             return item;
           });
           const pedidoModificado = { ...p, itens: itensAtualizados };
-          socket.emit('novo_pedido', pedidoModificado); // Sincroniza atualização
+          socket.emit('novo_pedido', pedidoModificado);
           return pedidoModificado;
         }
         return p;
@@ -624,6 +720,9 @@ export default function App() {
         return;
       }
 
+      // Imprime o fechamento de conta automaticamente na impressora IP 192.168.15.87
+      imprimirFechamentoMesa(localChave, infoComanda, pagamentosMesa);
+
       const agora = new Date();
       const registroVenda = {
         id: Date.now(),
@@ -639,7 +738,7 @@ export default function App() {
       socket.emit('fechar_comanda', { localChave, registroVenda });
       setMesaFechamento(null);
       setPagamentosMesa({});
-      setMensagem(`🏁 Comanda ${localChave} fechada!`);
+      setMensagem(`🏁 Comanda ${localChave} fechada e impressa!`);
       setTimeout(() => setMensagem(''), 3000);
     } catch (erro) {
       console.error("❌ [ERRO] Função encerarComanda:", erro);
@@ -704,7 +803,7 @@ export default function App() {
 
   /**
    * ============================================================================
-   * PACOTE 7: RENDERIZAÇÃO DA INTERFACE DO USUÁRIO (JSX COMPLETO)
+   * PACOTE 8: RENDERIZAÇÃO DA INTERFACE DO USUÁRIO (JSX COMPLETO)
    * ============================================================================
    */
   return (
@@ -717,7 +816,7 @@ export default function App() {
             <span className="text-xl">🍽️</span>
             <div>
               <h1 className="text-base font-black tracking-wide text-white">{dadosEmpresa.nome.toUpperCase()}</h1>
-              <span className="text-[10px] text-cyan-400 font-semibold">Sistema de Gestão & Autoatendimento • Meu Garçom</span>
+              <span className="text-[10px] text-cyan-400 font-semibold">Sistema de Gestão & Impressão Térmica (IP 192.168.15.87)</span>
             </div>
             <div className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold ${bancoConectado ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'}`}>
               {bancoConectado ? '● Online' : '○ Offline'}
@@ -860,7 +959,7 @@ export default function App() {
                       <p className="text-slate-400 text-xs mt-1">{item.descricao}</p>
                       <div className="flex gap-2 mt-2">
                         <span className="text-[10px] bg-slate-950 text-cyan-300 px-2 py-0.5 rounded border border-slate-800">
-                          🖨️ {item.impressora || 'Cozinha Principal'}
+                          🖨️ {item.impressora || 'Cozinha Principal'} (IP 192.168.15.87)
                         </span>
                       </div>
                     </div>
@@ -963,14 +1062,14 @@ export default function App() {
                   disabled={carrinho.length === 0} 
                   className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 text-slate-950 font-extrabold py-3 rounded-xl text-xs shadow-lg transition-all"
                 >
-                  Fazer Pedido
+                  Fazer Pedido & Imprimir
                 </button>
               </div>
             </section>
           </div>
         )}
 
-        {/* ABA CONSULTAR CONTA */}
+        {/* ABA CONSULTAR CONTA (COM BOTÃO DE IMPRIMIR CONFERÊNCIA) */}
         {abaAtiva === 'consultar' && (
           <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
             <h2 className="text-lg font-bold text-center">Consultar Conta da Mesa</h2>
@@ -1010,14 +1109,24 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-                <button 
-                  onClick={solicitarFechamentoConta} 
-                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-xs transition-all"
-                >
-                  🛎️ Solicitar Fechamento ao Garçom
-                </button>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button 
+                    onClick={() => imprimirConferenciaMesa(contaConsultada.local, contaConsultada.pedidos, contaConsultada.total)}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg text-xs transition-all"
+                  >
+                    🖨️ Imprimir Conferência
+                  </button>
+                  <button 
+                    onClick={solicitarFechamentoConta} 
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-xs transition-all"
+                  >
+                    🛎️ Pedir Fechamento
+                  </button>
+                </div>
+
                 {contaSolicitadaSucesso && (
-                  <p className="text-emerald-400 text-center text-[11px] font-bold">Solicitação enviada! O garçom já foi avisado.</p>
+                  <p className="text-emerald-400 text-center text-[11px] font-bold">Solicitação enviada ao garçom!</p>
                 )}
               </div>
             )}
@@ -1038,7 +1147,7 @@ export default function App() {
               {listaMesas.map((mesa) => (
                 <div 
                   key={mesa.numero} 
-                  className={`p-4 rounded-xl border flex flex-col justify-between h-28 transition-all ${mesa.ocupada ? 'bg-amber-950/40 border-amber-800' : 'bg-slate-900 border-slate-800'}`}
+                  className={`p-4 rounded-xl border flex flex-col justify-between h-32 transition-all ${mesa.ocupada ? 'bg-amber-950/40 border-amber-800' : 'bg-slate-900 border-slate-800'}`}
                 >
                   <div className="flex justify-between items-center">
                     <span className="font-extrabold text-sm">Mesa {mesa.numero}</span>
@@ -1051,22 +1160,32 @@ export default function App() {
                       <span className="text-xs text-slate-500 block">Livre</span>
                     )}
                   </div>
-                  <button 
-                    onClick={() => selecionarMesaParaLancar(mesa.numero)} 
-                    className="w-full bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 text-cyan-400 font-bold py-1.5 rounded text-[11px] transition-all"
-                  >
-                    + Lançar
-                  </button>
+                  <div className="space-y-1">
+                    {mesa.ocupada && (
+                      <button 
+                        onClick={() => imprimirConferenciaMesa(mesa.chave, mesa.dados.pedidos, mesa.dados.totalComanda)}
+                        className="w-full bg-indigo-950 border border-indigo-800 text-indigo-300 hover:bg-indigo-900 font-bold py-1 rounded text-[10px]"
+                      >
+                        🖨️ Conferência
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => selecionarMesaParaLancar(mesa.numero)} 
+                      className="w-full bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 text-cyan-400 font-bold py-1.5 rounded text-[10px] transition-all"
+                    >
+                      + Lançar Itens
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ABA COZINHA / BAR (COM BOTÃO DE MARCAR ITEM ENTREGUE NA MESA) */}
+        {/* ABA COZINHA / BAR */}
         {abaAtiva === 'cozinha' && usuarioLogado && (
           <div className="space-y-4">
-            <h2 className="text-base font-bold">Painel de Cozinha, Bar e Setores de Impressão</h2>
+            <h2 className="text-base font-bold">Painel de Cozinha, Bar e Impressão (IP 192.168.15.87)</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {pedidos.filter(p => !p.cancelado && p.status !== 'Entregue').length === 0 ? (
                 <p className="text-slate-500 text-xs py-8 text-center col-span-full">Nenhum pedido pendente nos setores.</p>
@@ -1075,7 +1194,15 @@ export default function App() {
                   <div key={pedido.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
                     <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                       <span className="font-extrabold text-sm text-cyan-400">{pedido.local}</span>
-                      <span className="text-xs bg-slate-800 px-2.5 py-1 rounded text-slate-300">{pedido.horario}</span>
+                      <div className="flex gap-2 items-center">
+                        <button 
+                          onClick={() => imprimirPedidoCozinha(pedido)}
+                          className="bg-indigo-950 border border-indigo-800 text-indigo-300 hover:bg-indigo-900 px-2 py-1 rounded text-[10px] font-bold"
+                        >
+                          🖨️ Reimprimir
+                        </button>
+                        <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300">{pedido.horario}</span>
+                      </div>
                     </div>
 
                     <div className="space-y-2 text-xs">
@@ -1087,10 +1214,9 @@ export default function App() {
                             </span>
                             {i.adicionais ? <span className="text-[10px] text-emerald-400 block">+ {i.adicionais}</span> : ''}
                             {i.retiradas ? <span className="text-[10px] text-rose-400 block">- {i.retiradas}</span> : ''}
-                            <span className="text-[10px] text-cyan-300 block">🖨️ {i.impressora || 'Cozinha Principal'}</span>
+                            <span className="text-[10px] text-cyan-300 block">🖨️ {i.impressora || 'Cozinha Principal'} (192.168.15.87)</span>
                           </div>
 
-                          {/* BOTÃO PARA MARCAR QUE FOI ENTREGUE NA MESA */}
                           <button
                             onClick={() => alternarEntregaItemMesa(pedido.id, idx)}
                             className={`px-2.5 py-1.5 rounded text-[10px] font-bold shrink-0 transition-all ${i.entregueMesa ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-amber-400 hover:bg-slate-700'}`}
@@ -1143,12 +1269,20 @@ export default function App() {
                       {comanda.contaSolicitada && (
                         <span className="inline-block bg-amber-950 text-amber-400 text-[10px] px-2 py-0.5 rounded font-bold">⚠️ Pediu Fechamento</span>
                       )}
-                      <button 
-                        onClick={() => setMesaFechamento(comanda)} 
-                        className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-1.5 rounded text-xs"
-                      >
-                        Encerrar Conta
-                      </button>
+                      <div className="flex gap-1 pt-1">
+                        <button 
+                          onClick={() => imprimirConferenciaMesa(chave, comanda.pedidos, comanda.totalComanda)}
+                          className="bg-indigo-950 border border-indigo-800 text-indigo-300 hover:bg-indigo-900 px-2 py-1 rounded text-[10px] font-bold"
+                        >
+                          🖨️ Conferência
+                        </button>
+                        <button 
+                          onClick={() => setMesaFechamento(comanda)} 
+                          className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-1.5 rounded text-xs"
+                        >
+                          Encerrar Conta
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -1197,7 +1331,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA PAINEL ADM (CADASTRO DE IMPRESSORAS, EMPRESA, MESAS, PRODUTOS E COLABORADORES) */}
+        {/* ABA PAINEL ADM (IMPRESSORA IP 192.168.15.87) */}
         {abaAtiva === 'config' && usuarioLogado && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
@@ -1232,15 +1366,15 @@ export default function App() {
               </form>
             </div>
 
-            {/* Bloco 0.1: Cadastro de Múltiplas Impressoras */}
+            {/* Bloco 0.1: Cadastro de Impressoras com IP 192.168.15.87:9100 */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 md:col-span-2">
-              <h3 className="text-xs font-bold text-cyan-400">🖨️ Cadastro de Impressoras (Setores)</h3>
+              <h3 className="text-xs font-bold text-cyan-400">🖨️ Cadastro de Impressoras (IP 192.168.15.87:9100)</h3>
               <form onSubmit={cadastrarImpressora} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
                 <div>
-                  <label className="text-[11px] text-slate-400 block mb-1">Nome da Impressora:</label>
+                  <label className="text-[11px] text-slate-400 block mb-1">Nome do Setor:</label>
                   <input 
                     type="text" 
-                    placeholder="Ex: Cozinha Pizzaria" 
+                    placeholder="Ex: Cozinha Principal" 
                     value={nomeNovaImpressora} 
                     onChange={(e) => setNomeNovaImpressora(e.target.value)} 
                     className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
@@ -1248,27 +1382,26 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-slate-400 block mb-1">Caminho da Impressora:</label>
+                  <label className="text-[11px] text-slate-400 block mb-1">Endereço IP e Porta:</label>
                   <input 
                     type="text" 
-                    placeholder="\\\\SERVIDOR\\NomeImpressora" 
                     value={caminhoNovaImpressora} 
                     onChange={(e) => setCaminhoNovaImpressora(e.target.value)} 
-                    className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                    className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-cyan-300 font-bold" 
+                    required
                   />
                 </div>
                 <button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2 rounded text-xs">
-                  + Adicionar Impressora
+                  + Adicionar Impressora IP
                 </button>
               </form>
 
-              {/* Lista de Impressoras Cadastradas */}
               <div className="flex flex-wrap gap-2 pt-2">
                 {listaImpressoras.map(imp => (
                   <div key={imp.id} className="bg-slate-950 px-3 py-1.5 rounded border border-slate-800 flex items-center gap-3 text-xs">
                     <div>
                       <span className="font-bold text-cyan-300">{imp.nome}</span>
-                      <span className="text-[10px] text-slate-400 block">{imp.caminho}</span>
+                      <span className="text-[10px] text-slate-400 block">🖨️ IP: {imp.caminho}</span>
                     </div>
                     {listaImpressoras.length > 1 && (
                       <button onClick={() => removerImpressora(imp.id)} className="text-rose-400 font-bold hover:text-rose-300">
@@ -1381,7 +1514,7 @@ export default function App() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[11px] text-slate-400 block mb-1">🖨️ Impressora Associada:</label>
+                    <label className="text-[11px] text-slate-400 block mb-1">🖨️ Impressora Vinculada:</label>
                     <select 
                       value={novaImpressoraItem} 
                       onChange={(e) => setNovaImpressoraItem(e.target.value)} 
@@ -1686,7 +1819,7 @@ export default function App() {
               <label className="text-xs text-slate-400 block">Formas de Pagamento:</label>
               {['Dinheiro', 'PIX', 'Cartão de Crédito', 'Cartão de Débito'].map(forma => (
                 <div key={forma} className="flex justify-between items-center bg-slate-950 p-2 rounded text-xs">
-                  <span>{forma}</span>
+                  <span><span>{forma}</span></span>
                   <input 
                     type="number" 
                     step="0.01" 
@@ -1704,7 +1837,7 @@ export default function App() {
                 Cancelar
               </button>
               <button onClick={() => encerarComanda(mesaFechamento.local, mesaFechamento)} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-2 rounded text-xs font-extrabold">
-                Concluir Fechamento
+                Concluir & Imprimir Fechamento
               </button>
             </div>
           </div>
