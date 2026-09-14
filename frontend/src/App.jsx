@@ -14,38 +14,17 @@ const VERSAO_SISTEMA = (() => {
   const agora = new Date();
   const dataFmt = agora.toLocaleDateString('pt-BR');
   const horaFmt = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  return `v3.10.0 • Compilado em ${dataFmt} às ${horaFmt}`;
+  return `v3.12.0 • Compilado em ${dataFmt} às ${horaFmt}`;
 })();
 
-// Cardápio completo padrão pré-cadastrado
+// Cardápio completo padrão com associação de impressora padrão
 const CARDAPIO_PADRAO_COMPLETO = [
-  { id: 101, nome: 'Espetinho de Boi (Alcatra)', categoria: 'Espetinhos', preco: 12.00, descricao: 'Carne macia com tempero especial', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
-  { id: 102, nome: 'Espetinho de Frango com Bacon', categoria: 'Espetinhos', preco: 10.00, descricao: 'Frango suculento envolvido em bacon', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
-  { id: 103, nome: 'Espetinho de Coração', categoria: 'Espetinhos', preco: 11.00, descricao: 'Coração de frango temperado', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
-  { id: 104, nome: 'Espetinho de Kafta', categoria: 'Espetinhos', preco: 11.00, descricao: 'Carne moída temperada no espeto', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
-  { id: 105, nome: 'Espetinho de Linguiça Toscana', categoria: 'Espetinhos', preco: 10.00, descricao: 'Linguiça suína artesanal', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
-  { id: 106, nome: 'Espetinho de Queijo Coalho', categoria: 'Espetinhos', preco: 13.00, descricao: 'Queijo coalho assado na brasa', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
-  { id: 107, nome: 'Espetinho de Pão de Alho', categoria: 'Espetinhos', preco: 9.00, descricao: 'Pão recheado com pasta de alho', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
-  { id: 108, nome: 'Medalhão de Boi', categoria: 'Espetinhos', preco: 14.00, descricao: 'Alcatra enrolada no bacon', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
-  
-  { id: 201, nome: 'Heineken Long Neck 330ml', categoria: 'Cervejas', preco: 10.00, descricao: 'Cerveja Puro Malte gelada', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 202, nome: 'Budweiser Long Neck 330ml', categoria: 'Cervejas', preco: 9.00, descricao: 'American Lager', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 203, nome: 'Amstel Lata 350ml', categoria: 'Cervejas', preco: 7.00, descricao: 'Puro Malte refrescante', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 204, nome: 'Skol Lata 350ml', categoria: 'Cervejas', preco: 6.00, descricao: 'A cerveja que desce redondo', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 205, nome: 'Brahma Duplo Malte Lata 350ml', categoria: 'Cervejas', preco: 7.00, descricao: 'Sabor encorpado', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 206, nome: 'Stella Artois Long Neck 330ml', categoria: 'Cervejas', preco: 10.00, descricao: 'Puro malte belga', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 207, nome: 'Original 600ml (Retornável)', categoria: 'Cervejas', preco: 15.00, descricao: 'Para mesa (Garrafa)', impressora: 'Bar 1', destino: 'bar', ativo: true },
-
-  { id: 301, nome: 'Coca-Cola Lata 350ml', categoria: 'Refrigerantes', preco: 6.50, descricao: 'Refrigerante sabor cola', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 302, nome: 'Coca-Cola Zero Lata 350ml', categoria: 'Refrigerantes', preco: 6.50, descricao: 'Sem açúcar', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 303, nome: 'Guaraná Antarctica Lata 350ml', categoria: 'Refrigerantes', preco: 6.00, descricao: 'O original do Brasil', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 304, nome: 'Guaraná Zero Lata 350ml', categoria: 'Refrigerantes', preco: 6.00, descricao: 'Guaraná zero açúcar', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 305, nome: 'Sprite Lata 350ml', categoria: 'Refrigerantes', preco: 6.00, descricao: 'Sabor limão', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 306, nome: 'Fanta Laranja Lata 350ml', categoria: 'Refrigerantes', preco: 6.00, descricao: 'Sabor laranja', impressora: 'Bar 1', destino: 'bar', ativo: true },
-  { id: 307, nome: 'Coca-Cola 2 Litros (Pet)', categoria: 'Refrigerantes', preco: 14.00, descricao: 'Para compartilhar na mesa', impressora: 'Bar 1', destino: 'bar', ativo: true },
-
-  { id: 401, nome: 'Porção de Fritas com Bacon e Cheddar', categoria: 'Porções', preco: 38.00, descricao: 'Batata crocante com cheddar e bacon', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true },
-  { id: 402, nome: 'Porção de Mandioca Frita', categoria: 'Porções', preco: 28.00, descricao: 'Mandioca macia e crocante', impressora: 'Cozinha 1', destino: 'cozinha', ativo: true }
+  { id: 101, nome: 'Espetinho de Boi (Alcatra)', categoria: 'Espetinhos', preco: 12.00, descricao: 'Carne macia com tempero especial', impressora: 'Cozinha Principal', destino: 'cozinha', ativo: true },
+  { id: 102, nome: 'Espetinho de Frango com Bacon', categoria: 'Espetinhos', preco: 10.00, descricao: 'Frango suculento envolvido em bacon', impressora: 'Cozinha Principal', destino: 'cozinha', ativo: true },
+  { id: 151, nome: 'X-Burger Artesanal', categoria: 'Lanches', preco: 22.00, descricao: 'Pão brioche, blend 160g, queijo cheddar', impressora: 'Cozinha Principal', destino: 'cozinha', ativo: true },
+  { id: 181, nome: 'Prato Executivo de Alcatra', categoria: 'Refeições', preco: 32.00, descricao: 'Arroz, feijão, fritas, salada e carne', impressora: 'Cozinha Principal', destino: 'cozinha', ativo: true },
+  { id: 201, nome: 'Heineken Long Neck 330ml', categoria: 'Cervejas', preco: 10.00, descricao: 'Cerveja Puro Malte gelada', impressora: 'Impressora do Bar', destino: 'bar', ativo: true },
+  { id: 301, nome: 'Coca-Cola Lata 350ml', categoria: 'Refrigerantes', preco: 6.50, descricao: 'Refrigerante sabor cola', impressora: 'Impressora do Bar', destino: 'bar', ativo: true }
 ];
 
 const USUARIOS_PADRAO_INICIAL = [
@@ -57,7 +36,7 @@ const USUARIOS_PADRAO_INICIAL = [
 export default function App() {
   /**
    * ============================================================================
-   * PACOTE 2: GERENCIAMENTO DE ESTADOS E FILTROS DE PESQUISA NO BANCO
+   * PACOTE 2: GERENCIAMENTO DE ESTADOS, IMPRESSORAS E EMPRESA
    * ============================================================================
    */
   const [bancoConectado, setBancoConectado] = useState(true);
@@ -69,13 +48,39 @@ export default function App() {
   const [erroLogin, setErroLogin] = useState('');
 
   const [listaUsuarios, setListaUsuarios] = useState(USUARIOS_PADRAO_INICIAL);
-  
-  // Estados para Edição de Usuários
   const [editandoUserLogin, setEditandoUserLogin] = useState(null);
   const [novoUsuario, setNovoUsuario] = useState('');
   const [novoSenhaUser, setNovoSenhaUser] = useState('');
   const [novoNomeUser, setNovoNomeUser] = useState('');
   const [novoTipoUser, setNovoTipoUser] = useState('garcom');
+
+  // Cadastro da Empresa ("Meu Garçom")
+  const [dadosEmpresa, setDadosEmpresa] = useState(() => {
+    const salvo = localStorage.getItem('meugarcom_empresa');
+    return salvo ? JSON.parse(salvo) : {
+      nome: 'Meu Garçom',
+      cnpj: '00.000.000/0001-00',
+      telefone: '(27) 99999-9999',
+      endereco: 'Rua Principal, 100 - Centro',
+      mensagemRodape: 'Obrigado pela preferência! Volte sempre.'
+    };
+  });
+  const [inputNomeEmpresa, setInputNomeEmpresa] = useState(dadosEmpresa.nome);
+  const [inputCnpjEmpresa, setInputCnpjEmpresa] = useState(dadosEmpresa.cnpj);
+  const [inputTelEmpresa, setInputTelEmpresa] = useState(dadosEmpresa.telefone);
+  const [inputEndEmpresa, setInputEndEmpresa] = useState(dadosEmpresa.endereco);
+
+  // Cadastro de Impressoras Múltiplas (Nomes customizados)
+  const [listaImpressoras, setListaImpressoras] = useState(() => {
+    const salvo = localStorage.getItem('meugarcom_impressoras');
+    return salvo ? JSON.parse(salvo) : [
+      { id: 1, nome: 'Cozinha Principal', caminho: '\\\\SERVIDOR\\Cozinha1' },
+      { id: 2, nome: 'Impressora do Bar', caminho: '\\\\SERVIDOR\\Bar1' },
+      { id: 3, nome: 'Balcão / Caixa', caminho: '\\\\SERVIDOR\\Balcao' }
+    ];
+  });
+  const [nomeNovaImpressora, setNomeNovaImpressora] = useState('');
+  const [caminhoNovaImpressora, setCaminhoNovaImpressora] = useState('');
 
   const [abaAtiva, setAbaAtiva] = useState('cardapio');
   const [categoriaSel, setCategoriaSel] = useState('Todas');
@@ -86,21 +91,14 @@ export default function App() {
   const [historicoVendas, setHistoricoVendas] = useState([]);
   const [clientesBanco, setClientesBanco] = useState([]);
 
-  // Termos de Pesquisa Geral no Banco
   const [termoPesquisaProdutos, setTermoPesquisaProdutos] = useState('');
   const [termoPesquisaUsuarios, setTermoPesquisaUsuarios] = useState('');
 
-  // Quantidade de Mesas configurável
   const [totalMesasSalao, setTotalMesasSalao] = useState(() => {
-    const salva = localStorage.getItem('eradogelo_total_mesas');
+    const salva = localStorage.getItem('meugarcom_total_mesas');
     return salva ? Number(salva) : 15;
   });
   const [inputTotalMesasAdm, setInputTotalMesasAdm] = useState(totalMesasSalao);
-
-  const [configImpressoras, setConfigImpressoras] = useState({
-    cozinha1: '\\\\SERVIDOR\\Cozinha1',
-    bar1: '\\\\SERVIDOR\\Bar1'
-  });
 
   const hojeStr = new Date().toISOString().split('T')[0];
   const [dataInicioFiltro, setDataInicioFiltro] = useState(hojeStr);
@@ -112,23 +110,27 @@ export default function App() {
 
   const [mesaAlvoGarcom, setMesaAlvoGarcom] = useState(null);
 
-  // Estados do CRUD de Produtos
+  // Estados do CRUD de Produtos (Com Associação de Impressora)
   const [editandoProdutoId, setEditandoProdutoId] = useState(null);
   const [novoNomeItem, setNovoNomeItem] = useState('');
   const [novaCategoriaItem, setNovaCategoriaItem] = useState('Espetinhos');
   const [novoPrecoItem, setNovoPrecoItem] = useState('');
   const [novaDescItem, setNovaDescItem] = useState('');
   const [novoDestinoItem, setNovoDestinoItem] = useState('cozinha');
+  const [novaImpressoraItem, setNovaImpressoraItem] = useState(listaImpressoras[0]?.nome || 'Cozinha Principal');
   const [novoAtivoItem, setNovoAtivoItem] = useState(true);
 
-  const [celularCliente, setCelularCliente] = useState(() => localStorage.getItem('eradogelo_cliente_celular') || '');
-  const [nomeCliente, setNomeCliente] = useState(() => localStorage.getItem('eradogelo_cliente_nome') || '');
+  const [celularCliente, setCelularCliente] = useState(() => localStorage.getItem('meugarcom_cliente_celular') || '');
+  const [nomeCliente, setNomeCliente] = useState(() => localStorage.getItem('meugarcom_cliente_nome') || '');
   const [mensagem, setMensagem] = useState('');
 
+  // Estados do Modal de Item
   const [itemSelecionado, setItemSelecionado] = useState(null);
   const [quantidadeModal, setQuantidadeModal] = useState(1);
   const [pontoCarne, setPontoCarne] = useState('Ao ponto');
   const [opcaoMolhoEspetinho, setOpcaoMolhoEspetinho] = useState('Molho e farinha');
+  const [adicionaisItem, setAdicionaisItem] = useState('');
+  const [retiradasItem, setRetiradasItem] = useState('');
 
   const [mesaFechamento, setMesaFechamento] = useState(null);
   const [pagamentosMesa, setPagamentosMesa] = useState({});
@@ -164,7 +166,6 @@ export default function App() {
     socket.on('atualizar_usuarios', (users) => { if (users && users.length > 0) setListaUsuarios(users); });
     socket.on('atualizar_vendas', (vendas) => { if (vendas) setHistoricoVendas(vendas); });
     socket.on('atualizar_clientes', (cli) => { if (cli) setClientesBanco(cli); });
-    socket.on('atualizar_config_impressora', (cfg) => { if (cfg) setConfigImpressoras(cfg); });
 
     return () => {
       socket.off('connect');
@@ -173,7 +174,6 @@ export default function App() {
       socket.off('atualizar_usuarios');
       socket.off('atualizar_vendas');
       socket.off('atualizar_clientes');
-      socket.off('atualizar_config_impressora');
     };
   }, []);
 
@@ -224,9 +224,49 @@ export default function App() {
 
   /**
    * ============================================================================
-   * PACOTE 5: GESTÃO E ALTERAÇÃO DE CADASTROS (PRODUTOS, USUÁRIOS E MESAS)
+   * PACOTE 5: GESTÃO, CADASTRO DE IMPRESSORAS E PRODUTOS ASSOCIADOS
    * ============================================================================
    */
+  function salvarCadastroEmpresa(e) {
+    e.preventDefault();
+    const novaEmpresa = {
+      nome: inputNomeEmpresa,
+      cnpj: inputCnpjEmpresa,
+      telefone: inputTelEmpresa,
+      endereco: inputEndEmpresa,
+      mensagemRodape: dadosEmpresa.mensagemRodape
+    };
+    setDadosEmpresa(novaEmpresa);
+    localStorage.setItem('meugarcom_empresa', JSON.stringify(novaEmpresa));
+    setMensagem('🏢 Dados da Empresa salvos com sucesso!');
+    setTimeout(() => setMensagem(''), 3000);
+  }
+
+  function cadastrarImpressora(e) {
+    e.preventDefault();
+    if (!nomeNovaImpressora) return;
+    const novaImp = {
+      id: Date.now(),
+      nome: nomeNovaImpressora.trim(),
+      caminho: caminhoNovaImpressora.trim() || '\\\\SERVIDOR\\Impressora'
+    };
+    const novaLista = [...listaImpressoras, novaImp];
+    setListaImpressoras(novaLista);
+    localStorage.setItem('meugarcom_impressoras', JSON.stringify(novaLista));
+    setNomeNovaImpressora('');
+    setCaminhoNovaImpressora('');
+    setMensagem('🖨️ Impressora cadastrada com sucesso!');
+    setTimeout(() => setMensagem(''), 3000);
+  }
+
+  function removerImpressora(id) {
+    const novaLista = listaImpressoras.filter(imp => imp.id !== id);
+    setListaImpressoras(novaLista);
+    localStorage.setItem('meugarcom_impressoras', JSON.stringify(novaLista));
+    setMensagem('🗑️ Impressora removida.');
+    setTimeout(() => setMensagem(''), 3000);
+  }
+
   function alterarQuantidadeMesas(e) {
     e.preventDefault();
     const qtd = Number(inputTotalMesasAdm);
@@ -236,7 +276,7 @@ export default function App() {
       return;
     }
     setTotalMesasSalao(qtd);
-    localStorage.setItem('eradogelo_total_mesas', qtd);
+    localStorage.setItem('meugarcom_total_mesas', qtd);
     setMensagem(`🪑 Salão atualizado para ${qtd} mesas!`);
     setTimeout(() => setMensagem(''), 3000);
   }
@@ -258,8 +298,8 @@ export default function App() {
               preco: Number(novoPrecoItem),
               descricao: novaDescItem,
               destino: novoDestinoItem,
-              ativo: novoAtivoItem,
-              impressora: novoDestinoItem === 'cozinha' ? 'Cozinha 1' : novoDestinoItem === 'bar' ? 'Bar 1' : 'Balcão'
+              impressora: novaImpressoraItem,
+              ativo: novoAtivoItem
             };
           }
           return item;
@@ -272,8 +312,8 @@ export default function App() {
           preco: Number(novoPrecoItem),
           descricao: novaDescItem,
           destino: novoDestinoItem,
-          ativo: novoAtivoItem,
-          impressora: novoDestinoItem === 'cozinha' ? 'Cozinha 1' : novoDestinoItem === 'bar' ? 'Bar 1' : 'Balcão'
+          impressora: novaImpressoraItem,
+          ativo: novoAtivoItem
         };
         novoCardapio.push(novo);
       }
@@ -300,6 +340,7 @@ export default function App() {
     setNovoPrecoItem(item.preco);
     setNovaDescItem(item.descricao || '');
     setNovoDestinoItem(item.destino || 'cozinha');
+    setNovaImpressoraItem(item.impressora || listaImpressoras[0]?.nome || 'Cozinha Principal');
     setNovoAtivoItem(item.ativo !== false);
   }
 
@@ -381,19 +422,19 @@ export default function App() {
 
   /**
    * ============================================================================
-   * PACOTE 6: PEDIDOS, SACOLA, COZINHA E CAIXA
+   * PACOTE 6: PEDIDOS, SACOLA E CONTROLE DE ITENS ENTREGUES NA MESA
    * ============================================================================
    */
   function handleCelularChange(e) {
     try {
       const tel = e.target.value;
       setCelularCliente(tel);
-      localStorage.setItem('eradogelo_cliente_celular', tel);
+      localStorage.setItem('meugarcom_cliente_celular', tel);
 
       const encontrado = clientesBanco.find(c => c.celular === tel);
       if (encontrado) {
         setNomeCliente(encontrado.nome);
-        localStorage.setItem('eradogelo_cliente_nome', encontrado.nome);
+        localStorage.setItem('meugarcom_cliente_nome', encontrado.nome);
       }
     } catch (erro) {
       console.error("❌ [ERRO] Função handleCelularChange:", erro);
@@ -404,7 +445,7 @@ export default function App() {
     try {
       const nome = e.target.value;
       setNomeCliente(nome);
-      localStorage.setItem('eradogelo_cliente_nome', nome);
+      localStorage.setItem('meugarcom_cliente_nome', nome);
     } catch (erro) {
       console.error("❌ [ERRO] Função handleNomeChange:", erro);
     }
@@ -415,6 +456,8 @@ export default function App() {
     setQuantidadeModal(1);
     setPontoCarne('Ao ponto');
     setOpcaoMolhoEspetinho('Molho e farinha');
+    setAdicionaisItem('');
+    setRetiradasItem('');
   }
 
   function adicionarAoCarrinho() {
@@ -427,6 +470,9 @@ export default function App() {
       quantidade: quantidadeModal,
       ponto: itemSelecionado.categoria === 'Espetinhos' ? pontoCarne : null,
       complementoMolho: itemSelecionado.categoria === 'Espetinhos' ? opcaoMolhoEspetinho : null,
+      adicionais: adicionaisItem ? adicionaisItem.trim() : '',
+      retiradas: retiradasItem ? retiradasItem.trim() : '',
+      entregueMesa: false, // Controle de entrega do item individual
       precoTotalItem
     };
 
@@ -516,6 +562,29 @@ export default function App() {
     }
   }
 
+  // Marcar/Desmarcar item individual como entregue na mesa
+  function alternarEntregaItemMesa(idPedido, indexItem) {
+    try {
+      const novosPedidos = pedidos.map(p => {
+        if (p.id === idPedido) {
+          const itensAtualizados = p.itens.map((item, idx) => {
+            if (idx === indexItem) {
+              return { ...item, entregueMesa: !item.entregueMesa };
+            }
+            return item;
+          });
+          const pedidoModificado = { ...p, itens: itensAtualizados };
+          socket.emit('novo_pedido', pedidoModificado); // Sincroniza atualização
+          return pedidoModificado;
+        }
+        return p;
+      });
+      setPedidos(novosPedidos);
+    } catch (erro) {
+      console.error("❌ [ERRO] Função alternarEntregaItemMesa:", erro);
+    }
+  }
+
   function consultarContaPorMesa(e) {
     try {
       e.preventDefault();
@@ -586,7 +655,7 @@ export default function App() {
     }
   }
 
-  // Cálculos dinâmicos, filtros de busca no banco local/socket
+  // Cálculos dinâmicos e filtros
   const cardapioVisivel = cardapio.filter(i => i.ativo !== false);
   const categoriasUnicas = ['Todas', ...new Set(cardapioVisivel.map((item) => item.categoria))];
   
@@ -645,10 +714,10 @@ export default function App() {
       <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 px-4 py-3 shadow-md">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🏔️</span>
+            <span className="text-xl">🍽️</span>
             <div>
-              <h1 className="text-base font-black tracking-wide text-white">ERA DO GELO</h1>
-              <span className="text-[10px] text-cyan-400 font-semibold">Sistema de Gestão & Autoatendimento</span>
+              <h1 className="text-base font-black tracking-wide text-white">{dadosEmpresa.nome.toUpperCase()}</h1>
+              <span className="text-[10px] text-cyan-400 font-semibold">Sistema de Gestão & Autoatendimento • Meu Garçom</span>
             </div>
             <div className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold ${bancoConectado ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'}`}>
               {bancoConectado ? '● Online' : '○ Offline'}
@@ -747,17 +816,16 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA CARDÁPIO & PESQUISA DE PRODUTOS */}
+        {/* ABA CARDÁPIO & PESQUISA */}
         {abaAtiva === 'cardapio' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
               
-              {/* Barra de Pesquisa Rápida de Produtos */}
               <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 flex gap-2 items-center">
                 <span className="text-sm">🔍</span>
                 <input 
                   type="text" 
-                  placeholder="Pesquisar produto no banco por nome ou categoria..." 
+                  placeholder="Pesquisar produto, lanche, refeição..." 
                   value={termoPesquisaProdutos}
                   onChange={(e) => setTermoPesquisaProdutos(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-white"
@@ -790,9 +858,11 @@ export default function App() {
                         <span className="text-cyan-400 font-extrabold text-sm">R$ {item.preco.toFixed(2)}</span>
                       </div>
                       <p className="text-slate-400 text-xs mt-1">{item.descricao}</p>
-                      <span className="inline-block mt-2 text-[10px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded border border-slate-800">
-                        Destino: {item.destino ? item.destino.toUpperCase() : 'COZINHA'}
-                      </span>
+                      <div className="flex gap-2 mt-2">
+                        <span className="text-[10px] bg-slate-950 text-cyan-300 px-2 py-0.5 rounded border border-slate-800">
+                          🖨️ {item.impressora || 'Cozinha Principal'}
+                        </span>
+                      </div>
                     </div>
                     <button 
                       onClick={() => abrirModalItem(item)} 
@@ -814,9 +884,11 @@ export default function App() {
                   carrinho.map((item, idx) => (
                     <div key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs flex justify-between">
                       <span>
-                        {item.quantidade}x {item.nome} 
+                        <b>{item.quantidade}x</b> {item.nome} 
                         {item.ponto ? ` (${item.ponto})` : ''} 
                         {item.complementoMolho ? ` [${item.complementoMolho}]` : ''}
+                        {item.adicionais ? <span className="text-emerald-400 block">+ {item.adicionais}</span> : ''}
+                        {item.retiradas ? <span className="text-rose-400 block">- {item.retiradas}</span> : ''}
                       </span>
                       <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
                     </div>
@@ -991,10 +1063,10 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA COZINHA / BAR */}
+        {/* ABA COZINHA / BAR (COM BOTÃO DE MARCAR ITEM ENTREGUE NA MESA) */}
         {abaAtiva === 'cozinha' && usuarioLogado && (
           <div className="space-y-4">
-            <h2 className="text-base font-bold">Painel de Cozinha, Bar e Balcão</h2>
+            <h2 className="text-base font-bold">Painel de Cozinha, Bar e Setores de Impressão</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {pedidos.filter(p => !p.cancelado && p.status !== 'Entregue').length === 0 ? (
                 <p className="text-slate-500 text-xs py-8 text-center col-span-full">Nenhum pedido pendente nos setores.</p>
@@ -1005,18 +1077,30 @@ export default function App() {
                       <span className="font-extrabold text-sm text-cyan-400">{pedido.local}</span>
                       <span className="text-xs bg-slate-800 px-2.5 py-1 rounded text-slate-300">{pedido.horario}</span>
                     </div>
-                    <div className="space-y-1 text-xs">
+
+                    <div className="space-y-2 text-xs">
                       {pedido.itens.map((i, idx) => (
-                        <div key={idx} className="flex justify-between border-b border-slate-900/50 pb-1">
-                          <span>
-                            <b>{i.quantidade}x</b> {i.nome} 
-                            {i.ponto ? ` (${i.ponto})` : ''} 
-                            {i.complementoMolho ? ` [${i.complementoMolho}]` : ''}
-                          </span>
-                          <span className="text-[10px] text-slate-500 uppercase">{i.destino || 'cozinha'}</span>
+                        <div key={idx} className="flex justify-between items-center bg-slate-950 p-2 rounded border border-slate-800/80">
+                          <div className="pr-2">
+                            <span className={`font-bold ${i.entregueMesa ? 'line-through text-slate-500' : 'text-white'}`}>
+                              {i.quantidade}x {i.nome} {i.ponto ? `(${i.ponto})` : ''}
+                            </span>
+                            {i.adicionais ? <span className="text-[10px] text-emerald-400 block">+ {i.adicionais}</span> : ''}
+                            {i.retiradas ? <span className="text-[10px] text-rose-400 block">- {i.retiradas}</span> : ''}
+                            <span className="text-[10px] text-cyan-300 block">🖨️ {i.impressora || 'Cozinha Principal'}</span>
+                          </div>
+
+                          {/* BOTÃO PARA MARCAR QUE FOI ENTREGUE NA MESA */}
+                          <button
+                            onClick={() => alternarEntregaItemMesa(pedido.id, idx)}
+                            className={`px-2.5 py-1.5 rounded text-[10px] font-bold shrink-0 transition-all ${i.entregueMesa ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-amber-400 hover:bg-slate-700'}`}
+                          >
+                            {i.entregueMesa ? '✓ Entregue' : '⏳ Marcar Entregue'}
+                          </button>
                         </div>
                       ))}
                     </div>
+
                     <div className="flex gap-2 pt-2 border-t border-slate-800">
                       <button 
                         onClick={() => atualizarStatusPedido(pedido.id, 'Em Preparo')} 
@@ -1113,10 +1197,89 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA PAINEL ADM (COM PESQUISA E EDIÇÃO COMPLETA DE TODOS OS CADASTROS) */}
+        {/* ABA PAINEL ADM (CADASTRO DE IMPRESSORAS, EMPRESA, MESAS, PRODUTOS E COLABORADORES) */}
         {abaAtiva === 'config' && usuarioLogado && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
+            {/* Bloco 0: Cadastro da Empresa */}
+            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 md:col-span-2">
+              <h3 className="text-xs font-bold text-cyan-400">🏢 Cadastro do Estabelecimento (Empresa)</h3>
+              <form onSubmit={salvarCadastroEmpresa} className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">Nome Fantasia:</label>
+                    <input 
+                      type="text" 
+                      value={inputNomeEmpresa} 
+                      onChange={(e) => setInputNomeEmpresa(e.target.value)} 
+                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white font-bold" 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">CNPJ:</label>
+                    <input 
+                      type="text" 
+                      value={inputCnpjEmpresa} 
+                      onChange={(e) => setInputCnpjEmpresa(e.target.value)} 
+                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                    />
+                  </div>
+                </div>
+                <button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-4 py-2 rounded text-xs">
+                  Salvar Dados da Empresa
+                </button>
+              </form>
+            </div>
+
+            {/* Bloco 0.1: Cadastro de Múltiplas Impressoras */}
+            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 md:col-span-2">
+              <h3 className="text-xs font-bold text-cyan-400">🖨️ Cadastro de Impressoras (Setores)</h3>
+              <form onSubmit={cadastrarImpressora} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">Nome da Impressora:</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Cozinha Pizzaria" 
+                    value={nomeNovaImpressora} 
+                    onChange={(e) => setNomeNovaImpressora(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">Caminho da Impressora:</label>
+                  <input 
+                    type="text" 
+                    placeholder="\\\\SERVIDOR\\NomeImpressora" 
+                    value={caminhoNovaImpressora} 
+                    onChange={(e) => setCaminhoNovaImpressora(e.target.value)} 
+                    className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+                  />
+                </div>
+                <button type="submit" className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-2 rounded text-xs">
+                  + Adicionar Impressora
+                </button>
+              </form>
+
+              {/* Lista de Impressoras Cadastradas */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {listaImpressoras.map(imp => (
+                  <div key={imp.id} className="bg-slate-950 px-3 py-1.5 rounded border border-slate-800 flex items-center gap-3 text-xs">
+                    <div>
+                      <span className="font-bold text-cyan-300">{imp.nome}</span>
+                      <span className="text-[10px] text-slate-400 block">{imp.caminho}</span>
+                    </div>
+                    {listaImpressoras.length > 1 && (
+                      <button onClick={() => removerImpressora(imp.id)} className="text-rose-400 font-bold hover:text-rose-300">
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Bloco 1: Configuração de Mesas */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 h-fit md:col-span-2">
               <h3 className="text-xs font-bold text-cyan-400">🪑 Configurar Quantidade de Mesas do Salão</h3>
@@ -1139,7 +1302,7 @@ export default function App() {
               </form>
             </div>
 
-            {/* Bloco 2: Gestão, Pesquisa e Edição de Produtos */}
+            {/* Bloco 2: Cadastro de Produtos com Associação de Impressora */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <h3 className="text-xs font-bold text-cyan-400">
@@ -1166,7 +1329,7 @@ export default function App() {
                   <label className="text-[11px] text-slate-400 block mb-1">Nome do Produto:</label>
                   <input 
                     type="text" 
-                    placeholder="Ex: Heineken Long Neck 330ml" 
+                    placeholder="Ex: X-Burger Artesanal" 
                     value={novoNomeItem} 
                     onChange={(e) => setNovoNomeItem(e.target.value)} 
                     className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
@@ -1183,6 +1346,8 @@ export default function App() {
                       className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white"
                     >
                       <option value="Espetinhos">Espetinhos</option>
+                      <option value="Lanches">Lanches</option>
+                      <option value="Refeições">Refeições</option>
                       <option value="Cervejas">Cervejas</option>
                       <option value="Refrigerantes">Refrigerantes</option>
                       <option value="Porções">Porções</option>
@@ -1207,7 +1372,7 @@ export default function App() {
                   <label className="text-[11px] text-slate-400 block mb-1">Descrição Curta:</label>
                   <input 
                     type="text" 
-                    placeholder="Ex: Gelada 330ml" 
+                    placeholder="Ex: Pão brioche, carne..." 
                     value={novaDescItem} 
                     onChange={(e) => setNovaDescItem(e.target.value)} 
                     className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
@@ -1216,25 +1381,25 @@ export default function App() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[11px] text-slate-400 block mb-1">Destino (Setor):</label>
+                    <label className="text-[11px] text-slate-400 block mb-1">🖨️ Impressora Associada:</label>
                     <select 
-                      value={novoDestinoItem} 
-                      onChange={(e) => setNovoDestinoItem(e.target.value)} 
-                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white font-bold text-cyan-300"
+                      value={novaImpressoraItem} 
+                      onChange={(e) => setNovaImpressoraItem(e.target.value)} 
+                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-cyan-300 font-bold"
                     >
-                      <option value="cozinha">🍳 Cozinha</option>
-                      <option value="bar">🍺 Bar</option>
-                      <option value="balcao">🏪 Balcão</option>
+                      {listaImpressoras.map(imp => (
+                        <option key={imp.id} value={imp.nome}>{imp.nome}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-[11px] text-slate-400 block mb-1">Status no Cardápio:</label>
+                    <label className="text-[11px] text-slate-400 block mb-1">Status:</label>
                     <button 
                       type="button"
                       onClick={() => setNovoAtivoItem(!novoAtivoItem)}
                       className={`w-full py-2 rounded text-xs font-bold border transition-all ${novoAtivoItem ? 'bg-emerald-950 border-emerald-800 text-emerald-400' : 'bg-rose-950 border-rose-800 text-rose-400'}`}
                     >
-                      {novoAtivoItem ? '🟢 Ativo (Visível)' : '🔴 Inativo (Oculto)'}
+                      {novoAtivoItem ? '🟢 Ativo' : '🔴 Inativo'}
                     </button>
                   </div>
                 </div>
@@ -1244,11 +1409,11 @@ export default function App() {
                 </button>
               </form>
 
-              {/* Caixa de Pesquisa de Produtos na Configuração */}
+              {/* Pesquisa de Produtos */}
               <div className="mt-4 pt-3 border-t border-slate-800 space-y-2">
                 <input 
                   type="text" 
-                  placeholder="🔍 Pesquisar produto para editar..." 
+                  placeholder="🔍 Pesquisar produto..." 
                   value={termoPesquisaProdutos}
                   onChange={(e) => setTermoPesquisaProdutos(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white"
@@ -1261,6 +1426,7 @@ export default function App() {
                           {prod.nome}
                         </span>
                         <span className="text-[10px] text-cyan-400 ml-2">R$ {prod.preco.toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400 block">🖨️ {prod.impressora || 'Cozinha'}</span>
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <button 
@@ -1282,11 +1448,11 @@ export default function App() {
               </div>
             </div>
 
-            {/* Bloco 3: Gestão, Pesquisa e Edição de Colaboradores */}
+            {/* Bloco 3: Gestão de Colaboradores */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 h-fit">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <h3 className="text-xs font-bold text-cyan-400">
-                  {editandoUserLogin ? '✏️ Editando Colaborador' : '👤 Cadastrar / Editar Colaborador'}
+                  {editandoUserLogin ? '✏️ Editando Colaborador' : '👤 Cadastrar Colaborador'}
                 </h3>
                 {editandoUserLogin && (
                   <button 
@@ -1298,7 +1464,7 @@ export default function App() {
                     }} 
                     className="text-[10px] bg-slate-800 text-rose-400 px-2 py-1 rounded font-bold"
                   >
-                    Cancelar Edição
+                    Cancelar
                   </button>
                 )}
               </div>
@@ -1343,7 +1509,7 @@ export default function App() {
                 </button>
               </form>
 
-              {/* Caixa de Pesquisa de Usuários */}
+              {/* Pesquisa de Usuários */}
               <div className="mt-4 pt-3 border-t border-slate-800 space-y-2">
                 <input 
                   type="text" 
@@ -1420,6 +1586,28 @@ export default function App() {
                 </div>
               </>
             )}
+
+            <div className="space-y-1">
+              <label className="text-xs text-emerald-400 block font-bold">➕ Adicionais (Opcional):</label>
+              <input 
+                type="text" 
+                placeholder="Ex: + Bacon extra, + Queijo" 
+                value={adicionaisItem} 
+                onChange={(e) => setAdicionaisItem(e.target.value)} 
+                className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-rose-400 block font-bold">➖ Retirar / Sem (Opcional):</label>
+              <input 
+                type="text" 
+                placeholder="Ex: - Cebola, - Salada" 
+                value={retiradasItem} 
+                onChange={(e) => setRetiradasItem(e.target.value)} 
+                className="w-full bg-slate-950 border border-slate-800 p-2 rounded text-xs text-white" 
+              />
+            </div>
 
             <div className="space-y-1">
               <label className="text-xs text-slate-400 block">Quantidade:</label>
@@ -1526,7 +1714,7 @@ export default function App() {
       {/* Rodapé Dinâmico */}
       <footer className="w-full py-2 px-4 border-t border-slate-900 bg-slate-950/60 text-center">
         <span className="text-[10px] text-slate-500 tracking-wider">
-          Era do Gelo • {VERSAO_SISTEMA}
+          {dadosEmpresa.nome} • {VERSAO_SISTEMA}
         </span>
       </footer>
     </div>
