@@ -26,10 +26,9 @@ const io = new Server(server, {
 
 const PORTA = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
-
 /**
  * ============================================================================
- * PACOTE 2: CONEXÃO COM O MONGODB ATLAS (COM SUPORTE SSL/TLS SEGURO)
+ * PACOTE 2: CONEXÃO COM O MONGODB ATLAS (AJUSTADO PARA O RENDER)
  * ============================================================================
  */
 let db = null;
@@ -40,9 +39,7 @@ const client = new MongoClient(MONGO_URI, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  },
-  tls: true,
-  tlsAllowInvalidCertificates: true
+  }
 });
 
 async function conectarBancoDados() {
@@ -59,11 +56,9 @@ async function conectarBancoDados() {
 
 conectarBancoDados();
 
-// Rota simples de status
 app.get('/api/status', (req, res) => {
   res.json({ conectado: dbConectado, timestamp: new Date() });
 });
-
 /**
  * ============================================================================
  * PACOTE 3: GERENCIAMENTO DE EVENTOS EM TEMPO REAL (SOCKET.IO)

@@ -1,15 +1,19 @@
-/**
- * ============================================================================
- * PACOTE 1: IMPORTAÇÕES, ESTADOS E CONFIGURAÇÕES DO CLIENTE (FRONTEND)
- * ============================================================================
- */
 import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
 const BACKEND_URL = "https://era-do-gelo-sistema.onrender.com"; 
 const socket = io(BACKEND_URL);
 
-const VERSAO_SISTEMA = "v3.5.0 • Completo & Modularizado";
+/**
+ * PACOTE 11: VERSÃO DINÂMICA E TIMELINE DE COMPILAÇÃO (RODAPÉ)
+ */
+const VERSAO_SISTEMA = (() => {
+  const agora = new Date();
+  const dataFmt = agora.toLocaleDateString('pt-BR');
+  const horaFmt = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `v3.7.1 • Compilado em ${dataFmt} às ${horaFmt}`;
+})();
+
 const TOTAL_MESAS_SALAO = 15;
 
 const OPCOES_MOLHOS = ['Molho Alho Caseiro', 'Molho Barbecue', 'Molho Verde / Cheiro Verde', 'Molho Picante / Pimenta', 'Sem Molho'];
@@ -31,9 +35,7 @@ const USUARIOS_PADRAO_INICIAL = [
 
 export default function App() {
   /**
-   * ============================================================================
    * PACOTE 2: GERENCIAMENTO DE ESTADOS (STATE MANAGEMENT)
-   * ============================================================================
    */
   const [bancoConectado, setBancoConectado] = useState(true);
   const [usuarioLogado, setUsuarioLogado] = useState(null); 
@@ -86,7 +88,6 @@ export default function App() {
   const [numMesa, setNumMesa] = useState('');
   const [identificacaoAvulsa, setIdentificacaoAvulsa] = useState('Balcão');
   
-  // Memória local para facilitar salvamento de celular e nome
   const [celularCliente, setCelularCliente] = useState(() => localStorage.getItem('eradogelo_cliente_celular') || '');
   const [nomeCliente, setNomeCliente] = useState(() => localStorage.getItem('eradogelo_cliente_nome') || '');
   const [mensagem, setMensagem] = useState('');
@@ -102,10 +103,11 @@ export default function App() {
   const [mesaFechamento, setMesaFechamento] = useState(null);
   const [pagamentosMesa, setPagamentosMesa] = useState({});
 
+  const [modoAtendimentoSacola, setModoAtendimentoSacola] = useState('mesa');
+  const [numeroMesaSacola, setNumeroMesaSacola] = useState('');
+
   /**
-   * ============================================================================
    * PACOTE 3: CONEXÃO, SOCKET E SINCRONIZAÇÃO EM TEMPO REAL
-   * ============================================================================
    */
   useEffect(() => {
     function testarConexaoBackend() {
@@ -157,11 +159,6 @@ export default function App() {
     };
   }, [usuarioLogado]);
 
-  /**
-   * ============================================================================
-   * PACOTE 4: FUNÇÕES DE AUTENTICAÇÃO (LOGIN / LOGOUT)
-   * ============================================================================
-   */
   function handleLogin(e) {
     try {
       e.preventDefault();
@@ -202,11 +199,6 @@ export default function App() {
     }
   }
 
-  /**
-   * ============================================================================
-   * PACOTE 5: FUNÇÕES DE CLIENTES E PREENCHIMENTO AUTOMÁTICO
-   * ============================================================================
-   */
   function handleCelularChange(e) {
     try {
       const tel = e.target.value;
@@ -232,14 +224,6 @@ export default function App() {
       console.error("❌ [ERRO] Função handleNomeChange:", erro);
     }
   }
-
-  /**
-   * ============================================================================
-   * PACOTE 6: FUNÇÕES DE CARRINHO, OPÇÕES E PEDIDOS (COM MESA E AVULSO)
-   * ============================================================================
-   */
-  const [modoAtendimentoSacola, setModoAtendimentoSacola] = useState('mesa'); // 'mesa' ou 'avulso'
-  const [numeroMesaSacola, setNumeroMesaSacola] = useState('');
 
   function enviarPedido() {
     try {
@@ -268,7 +252,6 @@ export default function App() {
         identificadorFinal = `Mesa ${numFmt}`;
         numeroMesaFinal = numFmt;
       } else {
-        // Pedido Avulso (Balcão / Retirada por Nome e Telefone)
         if (!nomeCliente) {
           setMensagem('⚠️ Informe o seu nome para o pedido avulso!');
           setTimeout(() => setMensagem(''), 3000);
@@ -313,11 +296,6 @@ export default function App() {
     }
   }
 
-  /**
-   * ============================================================================
-   * PACOTE 7: GESTÃO DE COZINHA, ENTREGAS E CANCELAMENTOS
-   * ============================================================================
-   */
   function atualizarStatusPedido(idPedido, novoStatus) {
     try {
       socket.emit('atualizar_status_pedido', { idPedido, status: novoStatus, entregue: false });
@@ -346,11 +324,6 @@ export default function App() {
     }
   }
 
-  /**
-   * ============================================================================
-   * PACOTE 8: CONFIGURAÇÕES (CARDÁPIO, USUÁRIOS E IMPRESSORAS)
-   * ============================================================================
-   */
   function cadastrarFuncionario(e) {
     try {
       e.preventDefault();
@@ -422,11 +395,6 @@ export default function App() {
     }
   }
 
-  /**
-   * ============================================================================
-   * PACOTE 9: COMANDAS E FECHAMENTO DE CAIXA
-   * ============================================================================
-   */
   function consultarContaPorMesa(e) {
     try {
       e.preventDefault();
@@ -498,7 +466,6 @@ export default function App() {
     }
   }
 
-  // Cálculos e Agrupamentos Auxiliares
   const categoriasUnicas = ['Todas', ...new Set(cardapio.map((item) => item.categoria))];
   const cardapioFiltrado = categoriaSel === 'Todas' ? cardapio : cardapio.filter((i) => i.categoria === categoriaSel);
   const totalCarrinho = carrinho.reduce((acc, item) => acc + item.precoTotalItem, 0);
@@ -530,100 +497,105 @@ export default function App() {
     return v.dataIso >= dataInicioFiltro && v.dataIso <= dataFimFiltro;
   });
   const faturamentoPeriodo = vendasFiltradasPorPeriodo.reduce((acc, v) => acc + v.total, 0);
-<section className="bg-slate-900 p-4 rounded-xl border border-slate-800 h-fit sticky top-4 space-y-4">
-                <h2 className="text-base font-bold pb-2 border-b border-slate-800">Sua Sacola ({carrinho.length})</h2>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {carrinho.length === 0 ? (
-                    <p className="text-slate-500 text-xs py-2 text-center">Nenhum item na sacola.</p>
-                  ) : (
-                    carrinho.map((item, idx) => (
-                      <div key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs flex justify-between">
-                        <span>{item.quantidade}x {item.nome} {item.ponto ? `(${item.ponto})` : ''}</span>
-                        <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
-                      </div>
-                    ))
-                  )}
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between font-sans">
+      <div className="p-4 max-w-6xl mx-auto w-full space-y-4">
+        
+        {/* Bloco de Sacola */}
+        <section className="bg-slate-900 p-4 rounded-xl border border-slate-800 h-fit space-y-4">
+          <h2 className="text-base font-bold pb-2 border-b border-slate-800">Sua Sacola ({carrinho.length})</h2>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {carrinho.length === 0 ? (
+              <p className="text-slate-500 text-xs py-2 text-center">Nenhum item na sacola.</p>
+            ) : (
+              carrinho.map((item, idx) => (
+                <div key={idx} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs flex justify-between">
+                  <span>{item.quantidade}x {item.nome} {item.ponto ? `(${item.ponto})` : ''}</span>
+                  <span className="text-cyan-400">R$ {item.precoTotalItem.toFixed(2)}</span>
                 </div>
+              ))
+            )}
+          </div>
 
-                <div className="space-y-3 pt-2 border-t border-slate-800">
-                  {/* Seletor do tipo de atendimento na sacola */}
-                  {!mesaAlvoGarcom && (
-                    <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
-                      <button 
-                        type="button" 
-                        onClick={() => setModoAtendimentoSacola('mesa')} 
-                        className={`py-1.5 rounded text-[11px] font-bold transition-all ${modoAtendimentoSacola === 'mesa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
-                      >
-                        🪑 Na Mesa
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={() => setModoAtendimentoSacola('avulso')} 
-                        className={`py-1.5 rounded text-[11px] font-bold transition-all ${modoAtendimentoSacola === 'avulso' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
-                      >
-                        🚶‍♂️ Avulso / Balcão
-                      </button>
-                    </div>
-                  )}
+          <div className="space-y-3 pt-2 border-t border-slate-800">
+            {!mesaAlvoGarcom && (
+              <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                <button 
+                  type="button" 
+                  onClick={() => setModoAtendimentoSacola('mesa')} 
+                  className={`py-1.5 rounded text-[11px] font-bold transition-all ${modoAtendimentoSacola === 'mesa' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
+                >
+                  🪑 Na Mesa
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setModoAtendimentoSacola('avulso')} 
+                  className={`py-1.5 rounded text-[11px] font-bold transition-all ${modoAtendimentoSacola === 'avulso' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400'}`}
+                >
+                  🚶‍♂️ Avulso / Balcão
+                </button>
+              </div>
+            )}
 
-                  {/* Campo de Número da Mesa se selecionado Mesa */}
-                  {(!mesaAlvoGarcom && modoAtendimentoSacola === 'mesa') && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] text-cyan-400 block font-bold">Número da Mesa:</label>
-                      <input 
-                        type="number" 
-                        placeholder="Ex: 05" 
-                        value={numeroMesaSacola} 
-                        onChange={(e) => setNumeroMesaSacola(e.target.value)} 
-                        className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-cyan-300 font-bold" 
-                      />
-                    </div>
-                  )}
+            {(!mesaAlvoGarcom && modoAtendimentoSacola === 'mesa') && (
+              <div className="space-y-1">
+                <label className="text-[11px] text-cyan-400 block font-bold">Número da Mesa:</label>
+                <input 
+                  type="number" 
+                  placeholder="Ex: 05" 
+                  value={numeroMesaSacola} 
+                  onChange={(e) => setNumeroMesaSacola(e.target.value)} 
+                  className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-cyan-300 font-bold" 
+                />
+              </div>
+            )}
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-slate-400 block font-medium">Celular / WhatsApp:</label>
-                    <input 
-                      type="tel" 
-                      placeholder="(27) 99999-9999" 
-                      value={celularCliente} 
-                      onChange={handleCelularChange} 
-                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-white" 
-                    />
-                  </div>
+            <div className="space-y-1">
+              <label className="text-[11px] text-slate-400 block font-medium">Celular / WhatsApp:</label>
+              <input 
+                type="tel" 
+                placeholder="(27) 99999-9999" 
+                value={celularCliente} 
+                onChange={handleCelularChange} 
+                className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-white" 
+              />
+            </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-slate-400 block font-medium">Seu Nome:</label>
-                    <input 
-                      type="text" 
-                      placeholder="Digite seu nome" 
-                      value={nomeCliente} 
-                      onChange={handleNomeChange} 
-                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-white" 
-                    />
-                  </div>
+            <div className="space-y-1">
+              <label className="text-[11px] text-slate-400 block font-medium">Seu Nome:</label>
+              <input 
+                type="text" 
+                placeholder="Digite seu nome" 
+                value={nomeCliente} 
+                onChange={handleNomeChange} 
+                className="w-full bg-slate-950 border border-slate-800 p-2 rounded-lg text-xs text-white" 
+              />
+            </div>
 
-                  <div className="flex justify-between text-sm font-bold pt-2">
-                    <span className="text-slate-400">Total:</span>
-                    <span className="text-cyan-400 text-base">R$ {totalCarrinho.toFixed(2)}</span>
-                  </div>
+            <div className="flex justify-between text-sm font-bold pt-2">
+              <span className="text-slate-400">Total:</span>
+              <span className="text-cyan-400 text-base">R$ {totalCarrinho.toFixed(2)}</span>
+            </div>
 
-                  <button 
-                    onClick={enviarPedido} 
-                    disabled={carrinho.length === 0} 
-                    className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 text-slate-950 font-extrabold py-3 rounded-xl text-xs shadow-lg transition-all"
-                  >
-                    Fazer Pedido
-                  </button>
-                </div>
-              </section>
-              /**
- * ============================================================================
- * PACOTE 11: VERSÃO DINÂMICA E TIMELINE DE COMPILAÇÃO (RODAPÉ)
- * ============================================================================
- */
-const VERSAO_COMPILACAO_DADO = (() => {
-  const agora = new Date();
-  const dataFmt = agora.toLocaleDateString('pt-BR');
-  const horaFmt = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  return `v3.7.1 • Compilado em ${dataFmt} às ${horaFmt}`;
-})();
+            <button 
+              onClick={enviarPedido} 
+              disabled={carrinho.length === 0} 
+              className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-800 text-slate-950 font-extrabold py-3 rounded-xl text-xs shadow-lg transition-all"
+            >
+              Fazer Pedido
+            </button>
+          </div>
+        </section>
+
+      </div>
+
+      {/* RODAPÉ DISCRETO COM A VERSÃO DINÂMICA */}
+      <footer className="w-full py-2 px-4 border-t border-slate-900 bg-slate-950/60 text-center">
+        <span className="text-[10px] text-slate-500 tracking-wider">
+          Era do Gelo • {VERSAO_SISTEMA}
+        </span>
+      </footer>
+    </div>
+  );
+}
