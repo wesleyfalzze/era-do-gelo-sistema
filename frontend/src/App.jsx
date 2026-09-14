@@ -14,7 +14,7 @@ const VERSAO_SISTEMA = (() => {
   const agora = new Date();
   const dataFmt = agora.toLocaleDateString('pt-BR');
   const horaFmt = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  return `v3.13.0 • Compilado em ${dataFmt} às ${horaFmt}`;
+  return `v3.14.0 • Compilado em ${dataFmt} às ${horaFmt}`;
 })();
 
 // Cardápio completo padrão com associação de impressora padrão
@@ -36,7 +36,7 @@ const USUARIOS_PADRAO_INICIAL = [
 export default function App() {
   /**
    * ============================================================================
-   * PACOTE 2: GERENCIAMENTO DE ESTADOS, IMPRESSORAS (IP 192.168.15.87)
+   * PACOTE 2: GERENCIAMENTO DE ESTADOS E IMPRESSORAS (IP 192.168.15.87)
    * ============================================================================
    */
   const [bancoConectado, setBancoConectado] = useState(true);
@@ -179,94 +179,158 @@ export default function App() {
 
   /**
    * ============================================================================
-   * PACOTE 4: MÓDULO DE IMPRESSÃO TÉRMICA (IP 192.168.15.87:9100 / ESC-POS)
+   * PACOTE 4: MÓDULO DE IMPRESSÃO TÉRMICA DIRETA (COMPATÍVEL IP 192.168.15.87)
    * ============================================================================
    */
-  function enviarComandoImpressaoTermica(ipAlvo, conteudoTexto) {
-    // Tenta envio via socket para o backend disparar Raw Socket TCP porta 9100
-    socket.emit('imprimir_termica', { ip: ipAlvo, texto: conteudoTexto }, (resposta) => {
-      if (resposta && resposta.sucesso) {
-        setMensagem('🖨️ Impressão enviada com sucesso para a impressora!');
-      } else {
-        // Fallback simulado para navegador caso o backend ESC/POS não esteja escutando
-        console.log(`🖨️ [SIMULAÇÃO DE IMPRESSÃO IP ${ipAlvo}]:\n` + conteudoTexto);
-        setMensagem('🖨️ Impressão disparada (Verifique a impressora IP 192.168.15.87)');
-      }
+  function dispararImpressaoHTML(htmlConteudo) {
+    const janelaImpressao = window.open('', '_blank', 'width=350,height=600');
+    if (!janelaImpressao) {
+      setMensagem('⚠️ Permita os pop-ups no navegador para imprimir automaticamente!');
       setTimeout(() => setMensagem(''), 4000);
-    });
+      return;
+    }
+
+    janelaImpressao.document.write(`
+      <html>
+        <head>
+          <title>Impressão Térmica - IP 192.168.15.87</title>
+          <style>
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              font-size: 12px;
+              width: 300px;
+              margin: 0;
+              padding: 5px;
+              color: #000;
+            }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .line { border-bottom: 1px dashed #000; margin: 5px 0; }
+            .item-row { display: flex; justify-content: space-between; }
+          </style>
+        </head>
+        <body>
+          ${htmlConteudo}
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(() => { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    janelaImpressao.document.close();
   }
 
   function imprimirPedidoCozinha(pedido) {
     const impInfo = listaImpressoras.find(i => i.nome === pedido.impressoraAlvo) || listaImpressoras[0];
-    const ipAlvo = impInfo ? impInfo.caminho : '192.168.15.87:9100';
+    const ipStr = impInfo ? impInfo.caminho : '192.168.15.87:9100';
 
-    let texto = `================================\n`;
-    texto += `      PEDIDO COZINHA / BAR      \n`;
-    texto += `================================\n`;
-    texto += `Local: ${pedido.local}\n`;
-    texto += `Horário: ${pedido.horario}\n`;
-    texto += `Atendente: ${pedido.atendente}\n`;
-    texto += `--------------------------------\n`;
+    let html = `
+      <div class="center bold" style="font-size: 14px;">=== PEDIDO COZINHA / BAR ===</div>
+      <div class="center">Impressora: ${ipStr}</div>
+      <div class="line"></div>
+      <div><b>Local:</b> ${pedido.local}</div>
+      <div><b>Horário:</b> ${pedido.horario}</div>
+      <div><b>Atendente:</b> ${pedido.atendente}</div>
+      <div class="line"></div>
+    `;
+
     pedido.itens.forEach(i => {
-      texto += `${i.quantidade}x ${i.nome}\n`;
-      if (i.ponto) texto += `   Ponto: ${i.ponto}\n`;
-      if (i.complementoMolho) texto += `   Molho: ${i.complementoMolho}\n`;
-      if (i.adicionais) texto += `   + ${i.adicionais}\n`;
-      if (i.retiradas) texto += `   - ${i.retiradas}\n`;
-      texto += `--------------------------------\n`;
+      html += `
+        <div class="bold">${i.quantidade}x ${i.nome}</div>
+        ${i.ponto ? `<div> &nbsp; Ponto: ${i.ponto}</div>` : ''}
+        ${i.complementoMolho ? `<div> &nbsp; Molho: ${i.complementoMolho}</div>` : ''}
+        ${i.adicionais ? `<div style="color: green;"> &nbsp; + ${i.adicionais}</div>` : ''}
+        ${i.retiradas ? `<div style="color: red;"> &nbsp; - ${i.retiradas}</div>` : ''}
+        <div style="font-size: 10px; color: #555;"> &nbsp; Setor: ${i.impressora || 'Cozinha'}</div>
+        <div class="line"></div>
+      `;
     });
-    texto += `Fim do Pedido\n\n\n`;
 
-    enviarComandoImpressaoTermica(ipAlvo, texto);
+    html += `<div class="center">Fim do Pedido</div>`;
+    dispararImpressaoHTML(html);
   }
 
   function imprimirConferenciaMesa(localChave, itensComanda, totalComanda) {
-    let texto = `================================\n`;
-    texto += `     CONFERÊNCIA DE CONTA       \n`;
-    texto += `    ${dadosEmpresa.nome.toUpperCase()}    \n`;
-    texto += `================================\n`;
-    texto += `Comanda / Mesa: ${localChave}\n`;
-    texto += `Data/Hora: ${new Date().toLocaleString('pt-BR')}\n`;
-    texto += `--------------------------------\n`;
+    let html = `
+      <div class="center bold" style="font-size: 14px;">CONFERÊNCIA DE CONTA</div>
+      <div class="center bold">${dadosEmpresa.nome.toUpperCase()}</div>
+      <div class="line"></div>
+      <div><b>Comanda:</b> ${localChave}</div>
+      <div><b>Data:</b> ${new Date().toLocaleString('pt-BR')}</div>
+      <div class="line"></div>
+    `;
+
     itensComanda.forEach(p => {
       p.itens.forEach(i => {
-        texto += `${i.quantidade}x ${i.nome} ... R$ ${(i.precoTotalItem).toFixed(2)}\n`;
+        html += `
+          <div class="item-row">
+            <span>${i.quantidade}x ${i.nome}</span>
+            <span>R$ ${(i.precoTotalItem).toFixed(2)}</span>
+          </div>
+        `;
       });
     });
-    texto += `--------------------------------\n`;
-    texto += `TOTAL A PAGAR: R$ ${totalComanda.toFixed(2)}\n`;
-    texto += `================================\n`;
-    texto += `* Não é documento fiscal *\n\n\n`;
 
-    enviarComandoImpressaoTermica('192.168.15.87:9100', texto);
+    html += `
+      <div class="line"></div>
+      <div class="item-row bold" style="font-size: 14px;">
+        <span>TOTAL:</span>
+        <span>R$ ${totalComanda.toFixed(2)}</span>
+      </div>
+      <div class="line"></div>
+      <div class="center" style="font-size: 10px;">* Não é documento fiscal *</div>
+    `;
+
+    dispararImpressaoHTML(html);
   }
 
   function imprimirFechamentoMesa(localChave, infoComanda, pagamentos) {
-    let texto = `================================\n`;
-    texto += `      FECHAMENTO DE CONTA       \n`;
-    texto += `    ${dadosEmpresa.nome.toUpperCase()}    \n`;
-    texto += `================================\n`;
-    texto += `Mesa: ${localChave}\n`;
-    texto += `Cliente: ${infoComanda.cliente}\n`;
-    texto += `Fechamento: ${new Date().toLocaleString('pt-BR')}\n`;
-    texto += `--------------------------------\n`;
+    let html = `
+      <div class="center bold" style="font-size: 14px;">FECHAMENTO DE CONTA</div>
+      <div class="center bold">${dadosEmpresa.nome.toUpperCase()}</div>
+      <div class="line"></div>
+      <div><b>Mesa:</b> ${localChave}</div>
+      <div><b>Cliente:</b> ${infoComanda.cliente}</div>
+      <div><b>Data:</b> ${new Date().toLocaleString('pt-BR')}</div>
+      <div class="line"></div>
+    `;
+
     infoComanda.pedidos.forEach(p => {
       p.itens.forEach(i => {
-        texto += `${i.quantidade}x ${i.nome} - R$ ${i.precoTotalItem.toFixed(2)}\n`;
+        html += `
+          <div class="item-row">
+            <span>${i.quantidade}x ${i.nome}</span>
+            <span>R$ ${i.precoTotalItem.toFixed(2)}</span>
+          </div>
+        `;
       });
     });
-    texto += `--------------------------------\n`;
-    texto += `VALOR TOTAL: R$ ${infoComanda.totalComanda.toFixed(2)}\n`;
-    texto += `Formas de Pagamento:\n`;
+
+    html += `
+      <div class="line"></div>
+      <div class="item-row bold" style="font-size: 14px;">
+        <span>VALOR TOTAL:</span>
+        <span>R$ ${infoComanda.totalComanda.toFixed(2)}</span>
+      </div>
+      <div class="line"></div>
+      <div class="bold">Formas de Pagamento:</div>
+    `;
+
     Object.entries(pagamentos).forEach(([forma, val]) => {
       if (val && Number(val) > 0) {
-        texto += ` - ${forma}: R$ ${Number(val).toFixed(2)}\n`;
+        html += `<div> &bull; ${forma}: R$ ${Number(val).toFixed(2)}</div>`;
       }
     });
-    texto += `================================\n`;
-    texto += `   ${dadosEmpresa.mensagemRodape}\n\n\n`;
 
-    enviarComandoImpressaoTermica('192.168.15.87:9100', texto);
+    html += `
+      <div class="line"></div>
+      <div class="center">${dadosEmpresa.mensagemRodape}</div>
+    `;
+
+    dispararImpressaoHTML(html);
   }
 
   /**
@@ -633,14 +697,13 @@ export default function App() {
         horario: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
 
-      // Envia via socket e imprime automaticamente na impressora vinculada IP 192.168.15.87
       socket.emit('novo_pedido', pedidoObjeto);
       imprimirPedidoCozinha(pedidoObjeto);
 
       setCarrinho([]);
       setMesaAlvoGarcom(null);
       setNumeroMesaSacola('');
-      setMensagem('✅ Pedido enviado e impresso na cozinha!');
+      setMensagem('✅ Pedido enviado e janela de impressão aberta!');
       setTimeout(() => setMensagem(''), 3000);
     } catch (erro) {
       console.error("❌ [ERRO] Função enviarPedido:", erro);
@@ -720,7 +783,6 @@ export default function App() {
         return;
       }
 
-      // Imprime o fechamento de conta automaticamente na impressora IP 192.168.15.87
       imprimirFechamentoMesa(localChave, infoComanda, pagamentosMesa);
 
       const agora = new Date();
@@ -1069,7 +1131,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA CONSULTAR CONTA (COM BOTÃO DE IMPRIMIR CONFERÊNCIA) */}
+        {/* ABA CONSULTAR CONTA */}
         {abaAtiva === 'consultar' && (
           <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
             <h2 className="text-lg font-bold text-center">Consultar Conta da Mesa</h2>
@@ -1331,11 +1393,10 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA PAINEL ADM (IMPRESSORA IP 192.168.15.87) */}
+        {/* ABA PAINEL ADM */}
         {abaAtiva === 'config' && usuarioLogado && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            {/* Bloco 0: Cadastro da Empresa */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 md:col-span-2">
               <h3 className="text-xs font-bold text-cyan-400">🏢 Cadastro do Estabelecimento (Empresa)</h3>
               <form onSubmit={salvarCadastroEmpresa} className="space-y-3">
@@ -1366,7 +1427,6 @@ export default function App() {
               </form>
             </div>
 
-            {/* Bloco 0.1: Cadastro de Impressoras com IP 192.168.15.87:9100 */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 md:col-span-2">
               <h3 className="text-xs font-bold text-cyan-400">🖨️ Cadastro de Impressoras (IP 192.168.15.87:9100)</h3>
               <form onSubmit={cadastrarImpressora} className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
@@ -1413,7 +1473,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Bloco 1: Configuração de Mesas */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 h-fit md:col-span-2">
               <h3 className="text-xs font-bold text-cyan-400">🪑 Configurar Quantidade de Mesas do Salão</h3>
               <form onSubmit={alterarQuantidadeMesas} className="flex gap-3 items-end">
@@ -1435,7 +1494,6 @@ export default function App() {
               </form>
             </div>
 
-            {/* Bloco 2: Cadastro de Produtos com Associação de Impressora */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <h3 className="text-xs font-bold text-cyan-400">
@@ -1542,7 +1600,6 @@ export default function App() {
                 </button>
               </form>
 
-              {/* Pesquisa de Produtos */}
               <div className="mt-4 pt-3 border-t border-slate-800 space-y-2">
                 <input 
                   type="text" 
@@ -1581,7 +1638,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Bloco 3: Gestão de Colaboradores */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-4 h-fit">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <h3 className="text-xs font-bold text-cyan-400">
@@ -1642,7 +1698,6 @@ export default function App() {
                 </button>
               </form>
 
-              {/* Pesquisa de Usuários */}
               <div className="mt-4 pt-3 border-t border-slate-800 space-y-2">
                 <input 
                   type="text" 
@@ -1819,7 +1874,7 @@ export default function App() {
               <label className="text-xs text-slate-400 block">Formas de Pagamento:</label>
               {['Dinheiro', 'PIX', 'Cartão de Crédito', 'Cartão de Débito'].map(forma => (
                 <div key={forma} className="flex justify-between items-center bg-slate-950 p-2 rounded text-xs">
-                  <span><span>{forma}</span></span>
+                  <span>{forma}</span>
                   <input 
                     type="number" 
                     step="0.01" 
